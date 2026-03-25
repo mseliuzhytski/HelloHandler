@@ -3,3 +3,14 @@ I need static HTML page for CVS files data processing. I need a button to upload
 note: "Tracking NO" column name in Trello is missing
 note: new line breaks formatting
 note: many empty rows
+
+⚠️ Notes / Limitations
+This is fully client-side, so:
+It cannot truly “persist” files between page reloads
+If you refresh, the report is lost (unless you want localStorage version—I can add that)
+🚀 Optional upgrades (I can add if you want)
+Drag & drop CSV upload
+Better CSV parser (handles quoted commas)
+Persist report in browser (localStorage)
+Preview table before saving
+Validation (missing columns warning)
