@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CSV Processor</title>
+<style>
+  body { font-family: Arial; padding: 20px; }
+  input, button { margin: 5px; padding: 8px; }
+  #log { margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<h2>CSV Processor</h2>
+
+<!-- Upload CSV -->
+<input type="file" id="fileInput" accept=".csv"><br>
+
+<!-- Tag Inputs -->
+<input type="text" id="tag1" placeholder="Tag1">
+<input type="text" id="tag2" placeholder="Tag2">
+
+<button onclick="processCSV()">ADD</button>
+
+<br><br>
+
+<!-- Save Report -->
+<input type="text" id="reportName" placeholder="Report file name">
+<button onclick="downloadCSV()">SAVE</button>
+
+<div id="log"></div>
+
+<script>
+let reportData = [];
+let fileLoaded = false;
+let currentFileName = "";
+
+// Parse CSV helper
+function parseCSV(text) {
+    const rows = text.split("\n").map(r => r.split(","));
+    const headers = rows[0].map(h => h.trim().toLowerCase());
+    return rows.slice(1).map(row => {
+        let obj = {};
+        headers.forEach((h, i) => obj[h] = row[i]?.trim());
+        return obj;
+    });
+}
+
+function processCSV() {
+    const fileInput = document.getElementById("fileInput");
+    const tag1 = document.getElementById("tag1").value;
+    const tag2Input = document.getElementById("tag2");
+
+    if (!fileInput.files.length) return;
+
+    const file = fileInput.files[0];
+    currentFileName = file.name;
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        const data = parseCSV(e.target.result);
+
+        data.forEach(row => {
+            reportData.push([
+                tag1,
+                tag2Input.value,
+                row["weight"] || "",
+                row["order num"] || "",
+                row["item-sku"] || "",
+                row["tracking no"] || ""
+            ]);
+        });
+
+        // Log action
+        const log = document.getElementById("log");
+        const entry = document.createElement("div");
+        entry.textContent = `Added → Tag1: ${tag1}, Tag2: ${tag2Input.value}, File: ${currentFileName}`;
+        log.appendChild(entry);
+
+        // Reset
+        tag2Input.value = "";
+        fileInput.value = ""; // clears file input
+        fileLoaded = false;
+    };
+
+    reader.readAsText(file);
+}
+
+function downloadCSV() {
+    if (reportData.length === 0) return;
+
+    const name = document.getElementById("reportName").value || "report";
+
+    let csvContent = "Tag1,Tag2,Weight,Order Num,Item SKU,Tracking NO\n";
+
+    reportData.forEach(row => {
+        csvContent += row.join(",") + "\n";
+    });
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const link = document.createElement("a");
+
+    link.href = URL.createObjectURL(blob);
+    link.download = name + ".csv";
+    link.click();
+}
+</script>
+
+</body>
+</html>
