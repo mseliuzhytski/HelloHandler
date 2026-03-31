@@ -1,0 +1,98 @@
+Great choice—JavaScript works really well for this, especially with libraries like pdf-lib.
+
+Here’s how you can do exactly what you described:
+
+🧩 Overview (JavaScript approach)
+
+You’ll typically use:
+
+pdf-parse → extract text from source PDF
+pdf-lib → write text into target PDF
+📦 Install dependencies
+npm install pdf-lib pdf-parse fs
+📄 Step 1: Extract text from source PDF
+const fs = require("fs");
+const pdf = require("pdf-parse");
+
+async function extractValue() {
+  const dataBuffer = fs.readFileSync("source.pdf");
+  const data = await pdf(dataBuffer);
+
+  const text = data.text;
+
+  // Example: extract a value using regex
+  const match = text.match(/Invoice Number:\s*(\S+)/);
+  return match ? match[1] : "";
+}
+✏️ Step 2: Write text into another PDF
+const { PDFDocument, rgb, StandardFonts } = require("pdf-lib");
+const fs = require("fs");
+
+async function writeToPdf(value) {
+  const existingPdfBytes = fs.readFileSync("target.pdf");
+
+  const pdfDoc = await PDFDocument.load(existingPdfBytes);
+  const page = pdfDoc.getPages()[0];
+
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  // Draw text at specific coordinates
+  page.drawText(value, {
+    x: 100,   // adjust position
+    y: 500,   // adjust position
+    size: 12,
+    font: font,
+    color: rgb(0, 0, 0),
+  });
+
+  const pdfBytes = await pdfDoc.save();
+  fs.writeFileSync("output.pdf", pdfBytes);
+}
+🔗 Step 3: Combine both steps
+(async () => {
+  const value = await extractValue();
+  console.log("Extracted:", value);
+
+  await writeToPdf(value);
+})();
+📍 Important Notes
+1. Positioning text (very important)
+(x, y) starts from bottom-left corner
+You’ll likely need to experiment to place it exactly on the line
+2. If target PDF is a form (much easier)
+
+If your second PDF has form fields:
+
+const form = pdfDoc.getForm();
+const field = form.getTextField("fieldName");
+field.setText(value);
+
+👉 This is way more reliable than coordinates.
+
+3. If source PDF is scanned
+
+If text extraction fails:
+
+You’ll need OCR (e.g., tesseract.js)
+🚀 When this works best
+
+✔ Structured PDFs (invoices, reports)
+✔ Known text patterns
+✔ Fixed layout target PDF
+
+⚠️ Common pain points
+Regex not matching (text formatting weird)
+Text extraction order can be messy
+Positioning takes trial & error
+👍 Bottom line
+
+Yes—you can fully automate this in JavaScript:
+
+Extract → parse → inject → save
+
+If you want, send:
+
+A sample of the text you’re extracting
+Screenshot of where it should go
+
+I can help you dial in the exact regex + coordinates so it works perfectly.
