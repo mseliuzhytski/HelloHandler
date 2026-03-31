@@ -1,3 +1,25 @@
+idea:
+load pdf w trkn
+load pdf w lbls
+- preview page
+text config:
+- size
+- bold
+Position:
+custom
+Have templates for:
+UPS Ground
+UPS Ground Saver
+program:
+- run each pg
+  - read trkn
+  - search trkn
+    - read sku
+    - write sku
+- save prnt
+
+///      SECTION      ///
+
 Great choice—JavaScript works really well for this, especially with libraries like pdf-lib.
 
 Here’s how you can do exactly what you described:
@@ -96,3 +118,8 @@ A sample of the text you’re extracting
 Screenshot of where it should go
 
 I can help you dial in the exact regex + coordinates so it works perfectly.
+
+
+///      SECTION      ///
+
+
