@@ -17,6 +17,8 @@ program:
     - read sku
     - write sku
 - save prnt
+ERROR HANDLER
+catch trnk not found
 
 ///      SECTION      ///
 
