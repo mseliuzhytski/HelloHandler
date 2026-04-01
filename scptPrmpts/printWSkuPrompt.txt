@@ -8,6 +8,7 @@ text config:
 Position:
 custom
 Have templates for:
+USPS Ground Advantage
 UPS Ground
 UPS Ground Saver
 program:
