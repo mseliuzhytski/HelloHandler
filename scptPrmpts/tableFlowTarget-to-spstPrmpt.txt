@@ -1,0 +1,9 @@
+I need static HTML page to process csv files. 
+When page open, I need the program onload to open a file from a folder that is in the same directory.
+Folder called "db" and file name "dbSku.csv". "dbSku.cvs" file contains two columns, first has uniq sku numbers and second contains a number for 
+every row. 
+I want this information to be data structured into a map, where sku number is a key and a number in the second column is a value,
+because I want to be able to quickly check that the exact given sku number exists in the data base and it's value is greater then 0.
+
+
+
