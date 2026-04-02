@@ -263,3 +263,26 @@ or build PDF.js yourself
 …but it’s messy and not worth it unless you’re shipping a product.
 
 ///      SECTION      ///
+
+Git repo
+
+https://github.com/naptha/tesseract.js
+
+OCR can run using
+
+tesseract.min.js
+worker.min.js
+tesseract-core.wasm.js
+
+eng.traineddata
+
+Setup
+Add the tesseract-wasm library to your project:
+
+npm install tesseract-wasm
+Serve the tesseract-core.wasm, tesseract-core-fallback.wasm and tesseract-worker.js files from node_modules/tesseract-wasm/dist alongside your JavaScript bundle.
+
+Get the training data file(s) for the languages you want to support from the tessdata_fast repo and serve it from a URL that your JavaScript can load. The eng.traineddata file supports English for example, and also works with many documents in other languages that use the same script.
+
+
+///        SECTION      ///
