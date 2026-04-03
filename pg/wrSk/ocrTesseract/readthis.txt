@@ -1,0 +1,55 @@
+NPM helper
+
+Install Mac:
+
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+
+Command not found error:
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+
+
+Git repo
+
+https://github.com/naptha/tesseract.js
+
+https://github.com/naptha/tesseract.js-core
+
+OCR can run using
+
+tesseract.min.js
+worker.min.js
+tesseract-core.wasm.js
+
+eng.traineddata
+	Download: https://github.com/tesseract-ocr/tessdata/blob/main/eng.traineddata
+
+
+tesseract.min.js: The main library script that provides the high-level API for users to interact with the OCR engine.
+
+worker.min.js: A script that runs in a Web Worker to handle OCR processing in a separate thread, preventing the main UI from freezing during intensive tasks.
+
+tesseract-core.wasm.js: The WebAssembly (Wasm) build of the original Tesseract engine, which executes the actual text recognition logic at near-native speeds.
+
+
+Setup
+Add the tesseract-wasm library to your project:
+
+npm install tesseract-wasm
+	check node_modules dir
+OR open tesseract.js folder
+npm install
+	install dependancies
+npm start
+	find files in dist dir  
+
+To build the compiled static files just execute the following:
+npm run build
+
+Serve the tesseract-core.wasm, tesseract-core-fallback.wasm and tesseract-worker.js files from node_modules/tesseract-wasm/dist alongside your JavaScript bundle.
+
+Get the training data file(s) for the languages you want to support from the tessdata_fast repo and serve it from a URL that your JavaScript can load. The eng.traineddata file supports English for example, and also works with many documents in other languages that use the same script.
+
+
