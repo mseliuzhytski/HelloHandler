@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CSV Processor</title>
+<style>
+  body { font-family: Arial; padding: 20px; }
+  input, button { margin: 5px; padding: 8px; }
+  #log { margin-top: 20px; }
+</style>
+</head>
+<body>
+
+    <h2>Test reading pdf</h2>
+
+    <input type="file" id="fileInput" accept=".pdf"><br>
+
+    <button onclick="processName()">READ</button>
+
+    <div id="status"></div>
+    <div id="output"></div>
+
+    <h4>logging</h4>
+    <div id="txtoutid"></div>
+
+    <script src="pdfjs/pdf.min.js"></script>
+    <script src="tesseract/tesseract.min.js"></script>
+    <script>
+
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.min.js';
+
+      const wlg = document.getElementById("txtoutid");
+
+      async function processPDF() {
+        const fileInput = document.getElementById('fileInput');
+        if (!fileInput.files.length) return;
+
+        const file = fileInput.files[0];
+        const status = document.getElementById('status');
+        const output = document.getElementById('output');
+
+        output.innerText = "";
+        status.innerText = "Loading PDF...";
+
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+        status.innerText = "Initializing OCR...";
+
+        const worker = await Tesseract.createWorker("eng",1,{
+          workerPath: 'tesseract/worker.min.js',
+          corePath: 'tesseract/tesseract-core.wasm.js',
+          langPath: '.',
+          logger: m => console.log(m)
+        });
+
+        /*worker.setLogger(m => {
+          status.innerText = m.status + " (" + Math.round(m.progress * 100) + "%)";
+        });
+
+        await worker.loadLanguage('eng');
+        await worker.initialize('eng');
+        */
+
+        let fullText = "";
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+          status.innerText = "Processing page " + i + " / " + pdf.numPages;
+
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 2 });
+
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+
+          await page.render({
+            canvasContext: context,
+            viewport: viewport
+          }).promise;
+
+          const { data: { text } } = await worker.recognize(canvas);
+
+          fullText += "\n\n--- Page " + i + " ---\n\n" + text;
+          output.innerText = fullText;
+        }
+
+        await worker.terminate();
+        status.innerText = "Done ✅";
+      }
+
+      function printText() {
+        const text = document.getElementById('output').innerText;
+        const win = window.open('', '', 'width=800,height=600');
+        win.document.write('<pre>' + text + '</pre>');
+        win.document.close();
+        win.print();
+      }
+
+      function processName() {
+          const fileInput = document.getElementById("fileInput");
+          if (!fileInput.files.length) return;
+          wlg.innerText = fileInput.files[0].name;
+          processPDF();
+      }
+
+    </script>
+
+</body>
+</html>
