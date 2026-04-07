@@ -1,0 +1,11 @@
+If you have Python:
+cd /your/project/folder
+python3 -m http.server 8000
+
+Then open:
+
+http://localhost:8000
+
+
+Fix:
+Access to fetch at 'file:///Users/markseliuzhytski/Documents/HH/wrtSk/ocrReadPdf/eng.traineddata.gz' from origin 'null' has been blocked by CORS policy: Cross origin requests are only supported for protocol schemes: chrome, chrome-extension, chrome-untrusted, data, http, https, isolated-app.
