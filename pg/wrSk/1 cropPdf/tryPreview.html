@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>CSV Processor</title>
+    <style>
+        body {
+            font-family: Arial;
+            padding: 20px;
+        }
+
+        input,
+        button {
+            margin: 5px;
+            padding: 8px;
+        }
+
+        #log {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>Test reading pdf</h2>
+
+    <input type="file" id="fileInput" accept=".pdf"><br>
+    <br><br>
+
+    <canvas id="pdfPreview" style="border:1px solid #ccc;"></canvas>
+    <br><br>
+
+    <button onclick="processName()">READ</button>
+
+    <h4>logging</h4>
+    <div id="txtoutid"></div>
+
+    <script src="pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "pdf.worker.min.js";
+
+        const wlg = document.getElementById("txtoutid");
+
+        document.getElementById("fileInput").addEventListener("change", previewPDF);
+
+        async function previewPDF() {
+            const fileInput = document.getElementById("fileInput");
+            if (!fileInput.files.length) return;
+
+            const file = fileInput.files[0];
+            const arrayBuffer = await file.arrayBuffer();
+
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+            const page = await pdf.getPage(1); // 👈 always page 1
+
+            const containerWidth = 150;
+            const scale = containerWidth / page.getViewport({ scale: 1 }).width;
+            const viewport = page.getViewport({ scale });
+
+            const canvas = document.getElementById("pdfPreview");
+            const ctx = canvas.getContext("2d");
+
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+
+            await page.render({
+                canvasContext: ctx,
+                viewport: viewport
+            }).promise;
+
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 2;
+
+            ctx.strokeRect(
+                canvas.width * 0.1,
+                canvas.height * 0.7,
+                canvas.width * 0.8,
+                canvas.height * 0.2
+            );
+        }
+
+        function processName() {
+            const fileInput = document.getElementById("fileInput");
+            if (!fileInput.files.length) return;
+            wlg.innerText = fileInput.files[0].name;
+        }
+
+    </script>
+
+</body>
+
+</html>

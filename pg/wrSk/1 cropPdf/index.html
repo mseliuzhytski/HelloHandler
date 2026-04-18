@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>CSV Processor</title>
+  <style>
+    body {
+      font-family: Arial;
+      padding: 20px;
+    }
+
+    input,
+    button {
+      margin: 5px;
+      padding: 8px;
+    }
+
+    #log {
+      margin-top: 20px;
+    }
+  </style>
+  <link rel="stylesheet" href="index.css">
+  <script src="index.js" defer></script>
+</head>
+
+<body>
+
+  <h2>Test reading pdf</h2>
+
+  <input type="file" id="fileInput" accept=".pdf"><br>
+
+  <div class="l-p-sb-sbh">
+
+    <div class="l-p-sb">
+      <div class="l-c-c">
+        <canvas id="pdfPreview" class="l-c"></canvas>
+        <canvas id="overlay" class="cs"></canvas>
+        <div class="cs-1" id="cs-1id"></div>
+      </div>
+      <div class="scroll-bar">
+          <div class="scroll-thumb"></div>
+      </div>
+    </div>
+    <div class="scroll-bar-h">
+        <div class="scroll-thumb-h"></div>
+    </div>
+
+  </div>
+  <br><br>
+
+  <button onclick="processName()">READ</button>
+
+  <h4>logging</h4>
+  <div id="txtoutid"></div>
+
+  <script src="pdf.min.js"></script>
+  <script src="pdf-lib.min.js"></script>
+  <script>
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "pdf.worker.min.js";
+
+    const wlg = document.getElementById("txtoutid");
+
+    async function processPDF() {
+      const fileInput = document.getElementById("fileInput");
+      if (!fileInput.files.length) return;
+
+      const file = fileInput.files[0];
+      const arrayBuffer = await file.arrayBuffer();
+
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+      const { PDFDocument } = PDFLib;
+      const newPdf = await PDFDocument.create();
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+
+        const viewport = page.getViewport({ scale: 2 }); // higher = better quality
+
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        const yhDiv = document.getElementById('cs-1id');
+        const yhStyle = window.getComputedStyle(yhDiv);
+        crop.y = parseFloat(yhStyle.marginTop);
+        crop.h = parseFloat(yhStyle.height);
+
+        let cropXset = 0;
+        let cropYset = 0;
+        console.log('l:'+crop.y+','+crop.h);
+
+        if(crop.y === 0){cropYset = 0;}
+        else{
+          cropYset = ((crop.y)/scalePrevH) * 2;
+        }
+        if(crop.x === 0){cropXset = 0;}
+        else{
+          cropXset = crop.x;
+        }
+
+        // 🔥 CROP AREA (YOU WILL ADJUST THIS)
+        const cropX = cropXset;
+        const cropY = cropYset;
+        const cropWidth = viewport.width;
+        const cropHeight = ((crop.h) / scalePrevH) * 2;
+
+        const croppedCanvas = document.createElement("canvas");
+        const croppedCtx = croppedCanvas.getContext("2d");
+
+        croppedCanvas.width = cropWidth;
+        croppedCanvas.height = cropHeight;
+
+        croppedCtx.drawImage(
+          canvas,
+          cropX, cropY, cropWidth, cropHeight,
+          0, 0, cropWidth, cropHeight
+        );
+
+        const imgData = croppedCanvas.toDataURL("image/png");
+
+        const imgBytes = await fetch(imgData).then(res => res.arrayBuffer());
+        const img = await newPdf.embedPng(imgBytes);
+
+        const pageNew = newPdf.addPage([img.width, img.height]);
+        pageNew.drawImage(img, {
+          x: 0,
+          y: 0,
+          width: img.width,
+          height: img.height
+        });
+      }
+
+      const pdfBytes = await newPdf.save();
+
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "cropped_labels.pdf";
+      a.click();
+
+      URL.revokeObjectURL(url);
+    }
+
+    function showContex(){
+      const overlayCanvas = document.getElementById("overlay");
+      const overlayCtx = overlayCanvas.getContext("2d");
+
+      const yhDiv = document.getElementById('cs-1id');
+      const yhStyle = window.getComputedStyle(yhDiv);
+      const y = parseFloat(yhStyle.marginTop)+2;
+      const h = parseFloat(yhStyle.height);
+    
+      //rgba(0, 255, 0, 0.5);
+      overlayCtx.fillStyle = "rgba(0, 255, 0, 0.5)";
+      overlayCtx.fillRect(crop.x,y,crop.w,h);
+      console.log('cor:'+crop.x+','+y+','+crop.w+','+h);
+    }
+
+    function processName() {
+      const fileInput = document.getElementById("fileInput");
+      if (!fileInput.files.length) return;
+      wlg.innerText = fileInput.files[0].name;
+      processPDF();
+    }
+
+  </script>
+
+</body>
+
+</html>

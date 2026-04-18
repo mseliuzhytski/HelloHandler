@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>CSV Processor</title>
+    <style>
+        body {
+            font-family: Arial;
+            padding: 20px;
+        }
+
+        input,
+        button {
+            margin: 5px;
+            padding: 8px;
+        }
+
+        #log {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>Test reading pdf</h2>
+
+    <input type="file" id="fileInput" accept=".pdf"><br>
+    <br><br>
+
+    <div style="position: relative; display: inline-block;">
+        <canvas id="pdfPreview" style="position: relative;"></canvas>
+        <canvas id="overlay" style="position: absolute;"></canvas>
+    </div>
+    <br><br>
+
+    <button onclick="processName()">READ</button>
+
+    <h4>logging</h4>
+    <div id="txtoutid"></div>
+
+    <script src="pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "pdf.worker.min.js";
+
+        const wlg = document.getElementById("txtoutid");
+
+        const previewCanvas = document.getElementById("pdfPreview");
+        const overlayCanvas = document.getElementById("overlay");
+        const overlayCtx = overlayCanvas.getContext("2d");
+
+        let crop = {
+            x: 50,
+            y: 50,
+            w: 200,
+            h: 100
+        };
+
+        let dragging = false;
+        let resizing = false;
+        let offsetX, offsetY;
+
+        document.getElementById("fileInput").addEventListener("change", previewPDF);
+
+        async function previewPDF() {
+            const file = fileInput.files[0];
+            const arrayBuffer = await file.arrayBuffer();
+
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            const page = await pdf.getPage(1);
+
+            const scale = 1.5;
+            const viewport = page.getViewport({ scale });
+
+            previewCanvas.width = viewport.width;
+            previewCanvas.height = viewport.height;
+
+            overlayCanvas.width = viewport.width;
+            overlayCanvas.height = viewport.height;
+
+            const ctx = previewCanvas.getContext("2d");
+
+            await page.render({ canvasContext: ctx, viewport }).promise;
+
+            drawCrop();
+        }
+
+        function drawCrop() {
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+            // box
+            overlayCtx.strokeStyle = "red";
+            overlayCtx.lineWidth = 2;
+            overlayCtx.strokeRect(crop.x, crop.y, crop.w, crop.h);
+
+            // resize handle (bottom-right)
+            overlayCtx.fillStyle = "red";
+            overlayCtx.fillRect(crop.x + crop.w - 8, crop.y + crop.h - 8, 16, 16);
+        }
+
+        overlayCanvas.addEventListener("mousedown", (e) => {
+            const rect = overlayCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // check resize handle
+            if (
+                x > crop.x + crop.w - 10 &&
+                y > crop.y + crop.h - 10
+            ) {
+                resizing = true;
+            } else if (
+                x > crop.x &&
+                x < crop.x + crop.w &&
+                y > crop.y &&
+                y < crop.y + crop.h
+            ) {
+                dragging = true;
+                offsetX = x - crop.x;
+                offsetY = y - crop.y;
+            }
+        });
+
+        overlayCanvas.addEventListener("mousemove", (e) => {
+            const rect = overlayCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (dragging) {
+                crop.x = x - offsetX;
+                crop.y = y - offsetY;
+                drawCrop();
+            }
+
+            if (resizing) {
+                crop.w = x - crop.x;
+                crop.h = y - crop.y;
+                drawCrop();
+            }
+        });
+
+        overlayCanvas.addEventListener("mouseup", () => {
+            dragging = false;
+            resizing = false;
+
+            console.log("Crop box:", crop);
+        });
+
+        overlayCanvas.addEventListener("mouseleave", () => {
+            dragging = false;
+            resizing = false;
+        });
+
+        function processName() {
+            const fileInput = document.getElementById("fileInput");
+            if (!fileInput.files.length) return;
+            wlg.innerText = fileInput.files[0].name;
+        }
+    </script>
+
+</body>
+
+</html>
