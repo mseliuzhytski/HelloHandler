@@ -1,0 +1,307 @@
+
+/* Comman Shared Classes*/
+.hidden{
+    display: none;
+}
+
+.invisible{
+    visibility: hidden;
+}
+
+.display{
+    visibility: visible;
+}
+
+.visible{
+    display: block;
+}
+
+.visible-b{
+    display: block;
+}
+
+.visible-f{
+    display: flex;
+}
+
+.visible-ib{
+    display: inline-block;
+}
+
+.selected-0{
+    color:black;
+    background-color: white;
+}
+
+.selected-0:hover{
+    cursor: pointer;
+    background-color: rgb(220, 220, 220);
+}
+
+.selected-1{
+    color:white;
+    background-color: #0099ff;
+}
+
+.clickable:hover{
+    cursor: pointer;
+}
+
+.highlighted{
+    background-color: yellow;
+}
+
+/* Above label*/
+
+.prnt-o-1,
+.prnt-o-2{
+    margin: 10px;
+    padding: 10px;
+    border: 1px solid black;
+}
+
+.prnt-o-1-m,
+.prnt-o-2-m{
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    height: 40px;
+}
+
+.prnt-o-1-temp{
+    margin-left: 10px;
+    margin-right: 10px;
+    padding: 5px;
+    border: 1px solid black;
+}
+
+.prnt-o-2-m input{
+    width: 200px;
+    margin-left: 10px;
+    padding: 4px;
+}
+
+.pg-trvrs{
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.pg-trvrs div,
+.pg-trvrs input{
+    margin-top: 2px;
+    margin-bottom: 2px;
+    margin-left: 10px;
+    margin-right: 2px;
+}
+
+.pg-trvrs input{
+    width: 50px;
+}
+
+.pg-trvrs-prev,
+.pg-trvrs-next,
+.pg-trvrs-swtch{
+    padding: 1px;
+    border-radius: 5px;
+    border: 1px solid black;
+}
+
+/* Logger*/
+
+.logger-c{
+    display: block;
+    width: 400px;
+    height: inherit;
+    margin-left: 30px;
+}
+
+.logger{
+    width: 100%;
+    height: 100%;
+    padding: 10px;
+    color: white;
+    background-color: black;
+}
+
+/* Label Display Section*/
+.l-p-sb-sbh {
+    display: inline-block;
+}
+
+.l-p-sb {
+    display: flex;
+}
+
+.l-c-c{
+    position: relative;
+    display: inline-block;
+    margin-left: 30px;
+    margin-right: 30px;
+    width: 216px;
+    height: 304px;/*324*/
+    border: 2px solid rgb(0, 166, 255);
+    overflow: hidden;
+}
+
+.l-c,
+.cs{
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+.cs-1{
+    position: absolute;
+    width: 212px;
+    margin-top: 0px;
+    height: 14px;
+    border: 2px solid rgb(0, 215, 0);
+    background-color: rgba(0, 215, 0,0.3);
+    transition: margin 0.05s linear;
+}
+
+.cs-2{
+    margin-top: 18px;
+    position: absolute;
+    width: 212px;
+    height: 14px;
+    border-style: dashed dashed dashed solid;
+    border-color:rgb(215, 0, 50);
+    border-width: 2px;
+    background-color: rgba(215, 0, 100, 0.3);
+    transition: margin 0.05s linear; 
+}
+
+/* Scrollbar */
+.scroll-bar,
+.scroll-bar-x {
+    position: relative;
+    width: 10px;
+    height: inherit;
+    background: #379e00;
+}
+
+.scroll-bar-x,
+.scroll-bar-Al{
+    margin-left: 30px;
+}
+
+.scroll-thumb,
+.scroll-thumb-x, 
+.scroll-thumb-Ah,
+.scroll-thumb-Al {
+    position: absolute;
+    top: 0;
+    width: 100%;
+    height: 60px;
+    background: #3100ae;
+    cursor: pointer;
+}
+
+.scroll-bar-Ah,
+.scroll-bar-Al{
+    position: relative;
+    width: 10px;
+    height: inherit;
+    background: #b5094b;
+}
+
+/* Scrollbar Horizontal*/
+.scroll-bar-h,
+.scroll-bar-h-w {
+    position: relative;
+    margin-top: 30px;
+    margin-left: 80px;
+    margin-right: 80px;
+    height: 10px;
+    width: inherit;
+    background: #379e00;
+}
+
+.scroll-thumb-h,
+.scroll-thumb-h-w {
+    position: absolute;
+    left: 0;
+    height: 100%;
+    width: 60px;
+    background: #3100ae;
+    cursor: pointer;
+}
+
+
+
+/* Match Sku Section*/
+
+.mtch-sk-ds-hdrs-sl-c{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.mtch-sk-ds-hdrs-sl-c div{
+    margin: 10px 0px 0px 10px;
+}
+
+.mtch-sk-ds-hdrs-sl-cq{
+    color:grey;
+}
+
+.ds-hdrs-sl-tx{
+    width: 150px;
+}
+
+.ds-hdrs-sl-tx-ex{
+    margin-left: 30px;
+}
+
+.ds-hdrs-sl-b{
+    display: inline-block;
+    width: 50px;
+    padding: 2px;
+    border: 1px solid black;
+    border-radius: 5px;
+    text-align: center;
+}
+
+.ds-hdrs-sl-bq{
+    color: black;
+    background-color: rgb(220, 220, 220);
+}
+
+.ds-hdrs-sl-optn{
+    padding: 2px 5px;
+    background-color: yellow;
+}
+
+.ds-hdrs-sk-tg{
+    display: inline-block;
+    padding: 2px;
+    border: 1px solid black;
+    border-radius: 5px;
+    margin: 5px 5px 0px 0px;
+}
+
+.mtch-accr-c{
+    display: flex;
+    align-items: center;
+    margin: 30px 0px;
+}
+
+.mtch-accr-c div{
+    margin: 0px 5px;
+}
+
+.mtch-accr-c input{
+    width: 50px;
+}
+
+.mtch-accr-btn{
+    padding: 2px;
+    border: 1px solid black;
+    border-radius: 5px;
+}
+
+.rnd-5f div{
+    margin: 0px;
+}

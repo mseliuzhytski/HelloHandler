@@ -1,0 +1,988 @@
+
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = "pdfjs/pdf.worker.min.js";
+
+const wlg = document.getElementById("txtoutid");
+const logger = document.querySelector('.logger');
+
+//let pdfReady;   
+let condFileOpen = false;
+//let condPdfReady = false;
+let condSkuFileOpen = false;
+
+let matchHeaderTags = new Set();
+let clmnSku = '';
+let clmnQ = '';
+let clmnTrkn = '';
+let datacsv = [];
+let accrl = 0;
+
+///         BUTTONS         ///
+
+const prntOp1 = document.querySelector('.prnt-o-1');
+const prntOp2 = document.querySelector('.prnt-o-2');
+
+const pgTrvrsP = document.querySelector('.pg-trvrs-prev');
+const pgTrvrsN = document.querySelector('.pg-trvrs-next');
+const pgTrvrsS = document.querySelector('.pg-trvrs-swtch');
+
+
+///         Verticsal Label Scroll          ///
+
+let isDragging = false;
+let startY, startTop;
+
+const thumb = document.querySelector('.scroll-thumb');
+const bar = document.querySelector('.scroll-bar');
+
+const content = document.querySelector('.cs-1');
+
+///         Verticsal Label Scroll X        ///
+
+let isDraggingX = false;
+
+const thumbx = document.querySelector('.scroll-thumb-x');
+const barx = document.querySelector('.scroll-bar-x');
+
+///         Verticsal Label Scroll AH        ///
+
+let isDraggingAH = false;
+
+const thumbAh = document.querySelector('.scroll-thumb-Ah');
+const barAh = document.querySelector('.scroll-bar-Ah');
+
+const contentA = document.querySelector('.cs-2');
+
+///         Verticsal Label Scroll AL        ///
+
+let isDraggingAL = false;
+
+const thumbAl = document.querySelector('.scroll-thumb-Al');
+const barAl = document.querySelector('.scroll-bar-Al');
+
+///         Horizontal Label Scroll         ///    
+
+let isDraggingH = false;
+let startX, startLeft;
+
+const thumbH = document.querySelector('.scroll-thumb-h');
+const barH = document.querySelector('.scroll-bar-h');
+const contentH = document.querySelector('.l-c');
+
+///         Horizontal Label Scroll W       ///    
+
+let isDraggingHW = false;
+
+const thumbHW = document.querySelector('.scroll-thumb-h-w');
+const barHW = document.querySelector('.scroll-bar-h-w');
+
+///         Preview Label           ///
+
+//let scalePrevW = 0;
+//let scalePrevH = 0;
+
+let crop = {
+    x: 0,
+    y: 0,
+    w: 0,
+    h: 0
+};
+
+
+///         Verticsal Label Scroll          ///
+
+thumb.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    startY = e.clientY;
+    startTop = thumb.offsetTop;
+    document.body.style.userSelect = 'none';
+});
+
+document.addEventListener('mouseup', () => {
+    isDragging = false;
+    document.body.style.userSelect = '';
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!condFileOpen) return;
+    if (!isDragging) return;
+
+    const delta = e.clientY - startY;
+    let newTop = startTop + delta;
+
+    const maxTop = bar.clientHeight - thumb.clientHeight;
+
+    // clamp
+    if (newTop < 0) newTop = 0;
+    if (newTop > maxTop) newTop = maxTop;
+
+    thumb.style.top = newTop + 'px';
+
+    // map scrollbar position → content movement
+    const scrollRatio = newTop / maxTop;
+
+    const maxScroll = content.scrollHeight - bar.clientHeight + 8; // BORDER OFFSET
+
+    content.style.marginTop = -(scrollRatio * maxScroll) + 'px';
+});
+
+
+///         Verticsal Label Scroll X        ///
+
+thumbx.addEventListener('mousedown', (e) => {
+    isDraggingX = true;
+    startY = e.clientY;
+    startTop = thumbx.offsetTop;
+    document.body.style.userSelect = 'none';
+});
+
+document.addEventListener('mouseup', () => {
+    isDraggingX = false;
+    document.body.style.userSelect = '';
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!condFileOpen) return;
+    if (!isDraggingX) return;
+
+    const delta = e.clientY - startY;
+    let newTop = startTop + delta;
+
+    const maxTop = barx.clientHeight - thumbx.clientHeight;
+
+    // clamp
+    if (newTop < 0) newTop = 0;
+    if (newTop > maxTop) newTop = maxTop;
+
+    thumbx.style.top = newTop + 'px';
+
+    // map scrollbar position → content movement
+    const scrollRatio = newTop / maxTop;
+
+    const maxScroll = contentH.scrollWidth - 60;
+
+    //content.style.width = (contentH.scrollWidth - (scrollRatio * maxScroll)-4)+ 'px';
+    content.style.marginLeft = (scrollRatio * maxScroll) + 'px';
+});
+
+///         Verticsal Label Scroll AH       ///
+
+thumbAh.addEventListener('mousedown', (e) => {
+    isDraggingAH = true;
+    startY = e.clientY;
+    startTop = thumbAh.offsetTop;
+    document.body.style.userSelect = 'none';
+});
+
+document.addEventListener('mouseup', () => {
+    isDraggingAH = false;
+    document.body.style.userSelect = '';
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!condFileOpen) return;
+    if (!isDraggingAH) return;
+
+    const delta = e.clientY - startY;
+    let newTop = startTop + delta;
+
+    const maxTop = barAh.clientHeight - thumbAh.clientHeight;
+
+    // clamp
+    if (newTop < 0) newTop = 0;
+    if (newTop > maxTop) newTop = maxTop;
+
+    thumbAh.style.top = newTop + 'px';
+
+    // map scrollbar position → content movement
+    const scrollRatio = newTop / maxTop;
+
+    const maxScroll = contentA.scrollHeight - barAh.clientHeight + 8; // BORDER OFFSET
+
+    contentA.style.marginTop = -(scrollRatio * maxScroll) + 'px';
+});
+
+///         Verticsal Label Scroll AL       ///
+
+thumbAl.addEventListener('mousedown', (e) => {
+    isDraggingAL = true;
+    startY = e.clientY;
+    startTop = thumbAl.offsetTop;
+    document.body.style.userSelect = 'none';
+});
+
+document.addEventListener('mouseup', () => {
+    isDraggingAL = false;
+    document.body.style.userSelect = '';
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!condFileOpen) return;
+    if (!isDraggingAL) return;
+
+    const delta = e.clientY - startY;
+    let newTop = startTop + delta;
+
+    const maxTop = barAl.clientHeight - thumbAl.clientHeight;
+
+    // clamp
+    if (newTop < 0) newTop = 0;
+    if (newTop > maxTop) newTop = maxTop;
+
+    thumbAl.style.top = newTop + 'px';
+
+    // map scrollbar position → content movement
+    const scrollRatio = newTop / maxTop;
+
+    const maxScroll = contentH.scrollWidth - 60;
+
+    contentA.style.marginLeft = (scrollRatio * maxScroll) + 'px';
+});
+
+
+///         Horizontal Label Scroll         ///      
+
+thumbH.addEventListener('mousedown', (e) => {
+    isDraggingH = true;
+    startX = e.clientX;
+    startLeft = thumbH.offsetLeft;
+    document.body.style.userSelect = 'none';
+});
+
+document.addEventListener('mouseup', () => {
+    isDraggingH = false;
+    document.body.style.userSelect = '';
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!condFileOpen) return;
+    if (!isDraggingH) return;
+
+    const delta = e.clientX - startX;
+    let newLeft = startLeft + delta;
+
+    const maxLeft = barH.clientWidth - thumbH.clientWidth;
+
+    // clamp
+    if (newLeft < 0) newLeft = 0;
+    if (newLeft > maxLeft) newLeft = maxLeft;
+
+    thumbH.style.left = newLeft + 'px';
+
+    // map position → height
+    const ratio = newLeft / maxLeft;
+
+    const minHeight = 18 - 4;   // smallest height   // BORDER OFFSET
+    const maxHeight = contentH.offsetHeight + 8;  // biggest height   // BORDER OFFSET
+
+    const newHeight = minHeight + ratio * (maxHeight - minHeight);
+
+    content.style.height = newHeight + 'px';
+});
+
+
+///         Horizontal Label Scroll W       ///      
+
+thumbHW.addEventListener('mousedown', (e) => {
+    isDraggingHW = true;
+    startX = e.clientX;
+    startLeft = thumbH.offsetLeft;
+    document.body.style.userSelect = 'none';
+});
+
+document.addEventListener('mouseup', () => {
+    isDraggingHW = false;
+    document.body.style.userSelect = '';
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!condFileOpen) return;
+    if (!isDraggingHW) return;
+
+    const delta = e.clientX - startX;
+    let newLeft = startLeft + delta;
+
+    const maxLeft = barHW.clientWidth - thumbHW.clientWidth;
+
+    // clamp
+    if (newLeft < 0) newLeft = 0;
+    if (newLeft > maxLeft) newLeft = maxLeft;
+
+    thumbHW.style.left = newLeft + 'px';
+
+    // map position → height
+    const ratio = newLeft / maxLeft;
+
+    const minWidth = 60;   // smallest height   
+    const maxWidth = contentH.offsetWidth - 4;  // biggest height 
+
+    const newWidth = maxWidth - ratio * (maxWidth - minWidth);
+
+    content.style.width = newWidth + 'px';
+});
+
+///         Preview Label           ///
+/*
+async function pdfOpenResource() {
+    const fileInput = document.getElementById("fileInput");
+    condFileOpen = false;
+    if (!fileInput.files.length) return;
+    else { condFileOpen = true; }
+
+    const file = fileInput.files[0];
+    const arrayBuffer = await file.arrayBuffer();
+
+    pdfReady = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    condPdfReady = true;
+}
+*/
+
+document.getElementById("fileInput").addEventListener("change", previewPDFx);
+
+function previewPDFx(){previewPDF(0)}
+
+async function previewPDF(n) {
+    /*
+    if(n == 0 ){pdfOpenResource();}
+    if (!condPdfReady) {
+        pdfOpenResource();
+        if(!pdfReady) return;
+    }
+    const pdf = pdfReady;
+    */
+    condFileOpen = false;
+    if (!fileInput.files.length) return;
+    else { condFileOpen = true; }
+
+    const file = fileInput.files[0];
+    const arrayBuffer = await file.arrayBuffer();
+
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    ///     pdfReady shortcut
+
+    let ipg = 1;
+    if(n != 0){
+        if(n != 3){
+            const cn = parseInt(document.getElementById("pg-trvrs-curid").innerText);
+            if(n == 1){
+                if((cn - 1) <= 0) return;
+                else ipg = cn - 1;
+            }else{ /// n == 2
+                if((cn + 1) > pdf.numPages) return;
+                else ipg = cn + 1;
+            }
+        } else{ /// n == 3
+            const sn = parseInt(document.getElementById("pg-trvrs-iid").value);
+            if(sn <= 0 || sn > pdf.numPages) return;
+            else ipg = sn;
+        }   
+    }
+
+    const page = await pdf.getPage(ipg);
+
+    const previewCanvas = document.getElementById("pdfPreview");
+    const overlayCanvas = document.getElementById("overlay");
+
+    const labelContContainer = document.querySelector('.l-c-c');
+
+    //const containerWidth = contentH.offsetWidth;
+    //scalePrevW = contentH.offsetWidth / page.getViewport({ scale: 1 }).width;
+    //scalePrevH = contentH.offsetHeight / page.getViewport({ scale: 1 }).height;
+    //const scale = containerWidth / page.getViewport({ scale: 1 }).width;
+    const viewport = page.getViewport({ scale: 1 });
+
+    //const scaleCanvasHeight = document.querySelector('.l-c-c');
+    //scaleCanvasHeight.style.height = Math.ceil(viewport.height) + 'px';
+
+    labelContContainer.style.width = viewport.width + 'px';
+    labelContContainer.style.height = viewport.height + 'px';
+    
+    if(n == 0){
+        content.style.width = (viewport.width - 4) + 'px';
+        content.style.margin = '0px';
+        contentA.style.width = (viewport.width - 4) + 'px';
+        contentA.style.margin = '18px 0px 0px 0px';
+    }
+    previewCanvas.width = viewport.width;
+    previewCanvas.height = viewport.height;
+
+    overlayCanvas.width = viewport.width;
+    overlayCanvas.height = viewport.height;
+
+    const ctx = previewCanvas.getContext("2d");
+    /*
+    const overlayCtx = overlayCanvas.getContext("2d");
+    
+    //rgba(0, 255, 0, 0.5);
+    overlayCtx.fillStyle = "rgba(0, 255, 0, 0.5)";
+    overlayCtx.fillRect(crop.x,crop.y,crop.w,crop.h);
+    */
+
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    const pgsNmDis = document.getElementById("pg-trvrs-pgsid");
+    const pgCurDis = document.getElementById("pg-trvrs-curid");
+
+    pgsNmDis.innerText = pdf.numPages;
+    pgCurDis.innerText = ipg;
+}
+
+
+///             Crop Label          ///
+
+
+async function cropPDF() {
+    const fileInput = document.getElementById("fileInput");
+    if (!fileInput.files.length) return;
+
+    const file = fileInput.files[0];
+    const arrayBuffer = await file.arrayBuffer();
+
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+    const { PDFDocument } = PDFLib;
+    const newPdf = await PDFDocument.create();
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+
+        const viewport = page.getViewport({ scale: 1 }); // higher = better quality
+
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        const yhDiv = document.getElementById('cs-1id');
+        const yhStyle = window.getComputedStyle(yhDiv);
+        crop.y = parseFloat(yhStyle.marginTop) + 2.0;
+        crop.h = parseFloat(yhStyle.height);
+        crop.x = parseFloat(yhStyle.marginLeft) + 2.0;
+        crop.w = parseFloat(yhStyle.width);
+        if (crop.x + crop.w > contentH.scrollWidth) { crop.w = contentH.scrollWidth - crop.x; }
+
+
+        /*
+        let cropXset = 0;
+        let cropYset = 0;
+        console.log('l:' + crop.y + ',' + crop.h);
+
+        if (crop.y === 0) { cropYset = 0; }
+        else {
+            cropYset = ((crop.y) / scalePrevH) * 2;
+        }
+        if (crop.x === 0) { cropXset = 0; }
+        else {
+            cropXset = crop.x;
+        }
+            */
+
+        // 🔥 CROP AREA (YOU WILL ADJUST THIS)
+        const cropX = crop.x;
+        const cropY = crop.y;
+        const cropWidth = crop.w;
+        const cropHeight = crop.h;
+
+        const croppedCanvas = document.createElement("canvas");
+        const croppedCtx = croppedCanvas.getContext("2d");
+
+        croppedCanvas.width = cropWidth;
+        croppedCanvas.height = cropHeight;
+
+        croppedCtx.drawImage(
+            canvas,
+            cropX, cropY, cropWidth, cropHeight,
+            0, 0, cropWidth, cropHeight
+        );
+
+        const imgData = croppedCanvas.toDataURL("image/png");
+
+        const imgBytes = await fetch(imgData).then(res => res.arrayBuffer());
+        const img = await newPdf.embedPng(imgBytes);
+
+        const pageNew = newPdf.addPage([img.width, img.height]);
+        pageNew.drawImage(img, {
+            x: 0,
+            y: 0,
+            width: img.width,
+            height: img.height
+        });
+    }
+
+    const pdfBytes = await newPdf.save();
+
+    const blob = new Blob([pdfBytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    /*
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "cropped_labels.pdf";
+    a.click();
+
+    URL.revokeObjectURL(url);
+    */
+    readLabels(pdfBytes);
+}
+
+
+///             Read Pdf            ///
+
+async function readLabels(pdfArg) {
+
+    /*
+    const fileInput = document.getElementById('fileInput');
+    if (!fileInput.files.length) return;
+
+    const file = fileInput.files[0];
+    const status = document.getElementById('status');
+    const output = document.getElementById('output');
+
+    output.innerText = "";
+    status.innerText = "Loading PDF...";
+
+    const arrayBuffer = await pdfArg.arrayBuffer();
+    */
+    const pdf = await pdfjsLib.getDocument({ data: pdfArg }).promise;
+
+    //status.innerText = "Initializing OCR...";
+
+    const worker = await Tesseract.createWorker("eng", 1, {
+        workerPath: 'tesseract/worker.min.js',
+        corePath: 'tesseract/tesseract-core.wasm.js',
+        langPath: '.'
+        //logger: m => console.log(m)
+    });
+
+    /*worker.setLogger(m => {
+      status.innerText = m.status + " (" + Math.round(m.progress * 100) + "%)";
+    });
+
+    await worker.loadLanguage('eng');
+    await worker.initialize('eng');
+    */
+
+    let fullText = "";
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+        //status.innerText = "Processing page " + i + " / " + pdf.numPages;
+
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 2 });
+
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        await page.render({
+            canvasContext: context,
+            viewport: viewport
+        }).promise;
+
+        const { data: { text } } = await worker.recognize(canvas);
+
+        fullText += "\n\n--- Page " + i + " ---\n\n" + text;
+        //output.innerText = fullText;
+    }
+    //console.log(fullText);
+    logger.innerText = fullText;  
+
+    await worker.terminate();
+    //status.innerText = "Done ✅";
+}
+
+///             CVS                 ///
+
+function csvParseHeaders(text) {
+    const rows = text
+        .split("\n")
+        .map(r => r.trim())
+        .filter(r => r.length > 0)
+        .map(r => r.split(","));
+    let data = [];
+    rows[0].map(x => {
+        let ntag = x;
+        //if(x[0] == '\"'){x = x.replaceAll("\"","");}
+        ntagi = ntag;
+       for(let fi = 1; fi < 10; fi++){
+            if(!matchHeaderTags.has(ntagi)){ 
+                matchHeaderTags.add(ntagi);
+                fi = 10;
+            }
+            else { ntagi = ntag+'-'+fi;}
+       }
+        ntag = ntagi;
+        //matchHeaderTags.push(ntag);
+        data[ntag] = [];
+    });
+    //console.log(matchHeaderTags);
+    rows.slice(1).map(row => {
+        let obj = {};
+        let ri = 0;
+        for(const h of matchHeaderTags){
+            //obj[h] = row[i]?.trim();
+            //console.log(h,row[i]);
+            data[h].push(row[ri]?.trim());
+            ri++;
+        }
+        //console.log('i',obj);
+    });
+    return data;
+}
+
+document.getElementById("cfileInput").addEventListener("change", csvOpen);
+
+function csvEnableDivs(){
+    const chk = document.getElementById("ds-hdrs-sl-qckid");
+    const btn = document.getElementById("ds-hdrs-sl-qid");
+    const ln = document.getElementById("mtch-sk-ds-hdrs-sl-cqid");
+    if(chk.checked){
+        ln.style.color = 'black';
+        btn.classList.remove("ds-hdrs-sl-bq");
+        btn.classList.add("selected-0");
+    } else {
+        ln.style.color = 'grey';
+        btn.classList.remove("selected-0");
+        btn.classList.add("ds-hdrs-sl-bq");
+        btn.innerText = 'show';
+        const tags = document.getElementById("ds-hdrs-a-qid");
+        if(!tags.classList.contains("hidden")) tags.classList.replace("visible","hidden");
+    }
+}
+
+function csvDisableDivs(){
+    const chk = document.getElementById("ds-hdrs-sl-qckid");
+    const btn = document.getElementById("ds-hdrs-sl-qid");
+    const ln = document.getElementById("mtch-sk-ds-hdrs-sl-cqid");
+    if(chk.checked){
+        ln.style.color = 'grey';
+        btn.classList.remove("selected-0");
+        btn.classList.add("ds-hdrs-sl-bq");
+        btn.innerText = 'show';
+        const tags = document.getElementById("ds-hdrs-a-qid");
+        if(!tags.classList.contains("hidden")) tags.classList.replace("visible","hidden");
+    }
+}
+
+function csvTagsClick(n,x){
+    let dsid = '';
+    let dsexid = '';
+    let tagsid = '';
+    if(n == 1){
+        dsid = "ds-hdrs-sl-optn-skid";
+        dsexid = "ds-hdrs-sl-exskid";
+        tagsid = "ds-hdrs-a-skid";
+    }
+    if(n == 2){
+        dsid = "ds-hdrs-sl-optn-qid";
+        dsexid = "ds-hdrs-sl-exqid";
+        tagsid = "ds-hdrs-a-qid";
+    }
+    if(n == 3){
+        dsid = "ds-hdrs-sl-optn-trknid";
+        dsexid = "ds-hdrs-sl-extrknid";
+        tagsid = "ds-hdrs-a-trknid";
+    }
+    const skuDs = document.getElementById(dsid);
+    const skuDsEx = document.getElementById(dsexid);
+    const skuTags = document.getElementById(tagsid);
+    if(skuDs.innerText === x) return;
+    switch (n){
+        case 1: clmnSku = x; break;
+        case 2: clmnQ = x; break;
+        case 3: clmnTrkn = x; break;
+    }
+    skuDs.innerText = x;
+    skuDsEx.innerHTML = datacsv[x][0];
+    for(const child of skuTags.children){
+        if(child.innerText.trim() === x.trim()) {child.classList.replace("selected-0","selected-1");}
+        else { if(child.classList.contains("selected-1")) {child.classList.replace("selected-1","selected-0");}}
+    }
+}
+
+function csvAutoTagsClear(){
+    const obj = [['',''],['',''],['','']];
+    obj[0][0]="ds-hdrs-sl-optn-skid";
+    obj[0][1]="ds-hdrs-sl-exskid";
+    obj[1][0]="ds-hdrs-sl-optn-qid";
+    obj[1][1]="ds-hdrs-sl-exqid";
+    obj[2][0]="ds-hdrs-sl-optn-trknid";
+    obj[2][1]="ds-hdrs-sl-extrknid";
+    for(n = 0; n <= 2; n++){
+        dsid = obj[n][0];
+        dsexid = obj[n][1];
+        const skuDs = document.getElementById(dsid);
+        const skuDsEx = document.getElementById(dsexid);
+        skuDs.innerText = '';
+        skuDsEx.innerHTML = '';
+    }
+}
+
+function csvAutoSlTags(){
+    let dsid = '';
+    let dsexid = '';
+    let tagsid = '';
+    let autosl = false;
+    for(const v of matchHeaderTags){
+        //console.log(v.trim().toLowerCase());
+        if(v.trim().toLowerCase().includes("sku")){
+            dsid = "ds-hdrs-sl-optn-skid";
+            dsexid = "ds-hdrs-sl-exskid";
+            tagsid = "ds-hdrs-a-skid";
+            autosl = true;
+        }
+        if(v.trim().toLowerCase().includes("quant")){
+            dsid = "ds-hdrs-sl-optn-qid";
+            dsexid = "ds-hdrs-sl-exqid";
+            tagsid = "ds-hdrs-a-qid";
+            autosl = true;
+        }
+        if(v.trim().toLowerCase().includes("track")){
+            dsid = "ds-hdrs-sl-optn-trknid";
+            dsexid = "ds-hdrs-sl-extrknid";
+            tagsid = "ds-hdrs-a-trknid";
+            autosl = true;
+        } else {}
+        if(autosl){
+            const skuDs = document.getElementById(dsid);
+            const skuDsEx = document.getElementById(dsexid);
+            const skuTags = document.getElementById(tagsid);
+            for(const child of skuTags.children){
+                if(child.innerText.trim() === v.trim()) {child.classList.replace("selected-0","selected-1");}
+                else { if(child.classList.contains("selected-1")) {child.classList.replace("selected-1","selected-0");}}
+            }
+            skuDs.innerText = v;
+            skuDsEx.innerHTML = datacsv[v][0];
+            autosl = false;
+        }
+    }
+}
+
+
+function csvOpen(){
+    condSkuFileOpen = false;
+    if (!cfileInput.files.length){
+        csvDisableDivs();
+        return;
+    }
+    else csvEnableDivs();
+    condSkuFileOpen = true;
+    const file = cfileInput.files[0];
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+
+        matchHeaderTags.clear();
+        datacsv = csvParseHeaders(e.target.result);
+        //console.log(datacsv);
+        const hdrMenuSk = document.getElementById("ds-hdrs-a-skid");
+        hdrMenuSk.innerHTML = '';
+        const hdrMenuQ = document.getElementById("ds-hdrs-a-qid");
+        hdrMenuQ.innerHTML = '';
+        const hdrMenuTrkn = document.getElementById("ds-hdrs-a-trknid");
+        hdrMenuTrkn.innerHTML = '';
+
+        for(const x of matchHeaderTags){
+            //console.log(x,i);
+            const newDiv = document.createElement('div');
+            newDiv.classList.add('ds-hdrs-sk-tg');
+            newDiv.classList.add('selected-0');
+            newDiv.innerText = x;
+            const newDiv2 = newDiv.cloneNode(true);
+            const newDiv3 = newDiv.cloneNode(true);
+            newDiv.addEventListener('click', (e) => {csvTagsClick(1,x);});
+            newDiv2.addEventListener('click', (e) => {csvTagsClick(2,x);});
+            newDiv3.addEventListener('click', (e) => {csvTagsClick(3,x);});
+            hdrMenuSk.appendChild(newDiv);
+            hdrMenuQ.appendChild(newDiv2);
+            hdrMenuTrkn.appendChild(newDiv3);
+        }
+        csvAutoTagsClear();
+        csvAutoSlTags();
+    };
+
+    reader.readAsText(file);
+
+    //console.log(matchHeaderTags);
+}
+
+
+
+///             BUTTONS             ///
+
+prntOp1.addEventListener('click', (e) => {
+    prntOptions1n2(1);
+});
+
+prntOp2.addEventListener('click', (e) => {
+    prntOptions1n2(2);
+});
+
+pgTrvrsP.addEventListener('click', (e) => {
+    previewPDF(1);
+});
+
+pgTrvrsN.addEventListener('click', (e) => {
+    previewPDF(2);
+});
+
+pgTrvrsS.addEventListener('click', (e) => {
+    previewPDF(3);
+});
+
+document.getElementById("ds-hdrs-sl-skid").addEventListener('click', (e) => {
+    displayHeaderTagsToggle(1);
+});
+
+document.getElementById("ds-hdrs-sl-qid").addEventListener('click', (e) => {
+    displayHeaderTagsToggle(2);
+});
+
+document.getElementById("ds-hdrs-sl-trknid").addEventListener('click', (e) => {
+    displayHeaderTagsToggle(3);
+});
+
+document.getElementById("ds-hdrs-sl-qckid").addEventListener('change', (e) => {
+    if(!condSkuFileOpen) return;
+    csvEnableDivs();
+});
+
+document.getElementById("mtch-accr-iid").addEventListener("change", (e) => {csvAccuarcyInput(e.target.value);});
+
+function csvAccuarcyInput(n){
+    if(!condSkuFileOpen) return;
+    const extxt = document.getElementById("ds-hdrs-sl-extrknid");
+    let v = parseInt(n);
+    const dsex = document.getElementById("mtch-accr-dsid");
+    const dsexlngth = document.getElementById("mtch-accr-dslngthid");
+    const vl = extxt.innerText.length-2;
+    const vtxt = extxt.innerText.trim();
+    dsexlngth.innerText = vl;
+    if(v <= 0 || v > vl) v = vl;
+    accrl = v;
+    let dif = vl - v;
+    dsex.innerHTML = '\"'+vtxt.slice(1,dif+1) + '<div class=\"highlighted\">' + vtxt.slice(dif+1,vl+1) + '</div>\"';  
+}
+
+document.getElementById("mtch-accr-btnid").addEventListener('click', (e) => {
+    const extxt = document.getElementById("ds-hdrs-sl-extrknid");
+    const inv = document.getElementById("mtch-accr-iid");
+    let l = extxt.innerText.length-2;
+    inv.value = l;
+    csvAccuarcyInput(l);
+});
+
+function displayHeaderTagsToggle(n){
+    if(!condSkuFileOpen) return;
+    let btnid = "";
+    let dsid = "";
+    if(n == 2){
+        const n2ck = document.getElementById("ds-hdrs-sl-qckid");
+        if(!n2ck.checked) return;
+        btnid = "ds-hdrs-sl-qid";
+        dsid = "ds-hdrs-a-qid";
+    } 
+    if(n == 1){
+        btnid = "ds-hdrs-sl-skid";
+        dsid = "ds-hdrs-a-skid";
+    }
+    if(n == 3){
+        btnid = "ds-hdrs-sl-trknid";
+        dsid = "ds-hdrs-a-trknid";
+    }
+    const btn = document.getElementById(btnid);
+    const dscl = document.getElementById(dsid);
+    if(dscl.classList.contains("hidden")){
+        btn.innerText = 'hide';
+        dscl.classList.replace("hidden","visible");
+    } else {
+        btn.innerText = 'show';
+        dscl.classList.replace("visible","hidden");
+    }
+    
+}
+
+function prntOptions1n2(n) {
+    const checkClass = document.querySelector('.prnt-o-1');
+
+    if ((n == 1 && checkClass.classList.contains("selected-0")) ||
+        (n == 2 && checkClass.classList.contains("selected-1"))) {
+        const otherClass = document.querySelector('.prnt-o-2');
+        const prntOp1tm = document.querySelector('.prnt-o-1-tm');
+        const prntOp2tm = document.querySelector('.prnt-o-2-tm');
+        const scrBr = document.querySelector('.scroll-bar');
+        const scrBrX = document.querySelector('.scroll-bar-x');
+        const scrBrH = document.querySelector('.scroll-bar-h');
+        const scrBrHW = document.querySelector('.scroll-bar-h-w');
+
+        if (n == 1) {
+            checkClass.classList.replace("selected-0", "selected-1");
+            otherClass.classList.replace("selected-1", "selected-0");
+
+            prntOp1tm.classList.replace("hidden", "visible");
+            prntOp2tm.classList.replace("visible", "hidden");
+
+            content.classList.replace("invisible", "display");
+            scrBr.classList.replace("invisible", "display");
+            scrBrX.classList.replace("invisible", "display");
+            scrBrH.classList.replace("invisible", "display");
+            scrBrHW.classList.replace("invisible", "display");
+
+        } else { // n == 2
+            checkClass.classList.replace("selected-1", "selected-0");
+            otherClass.classList.replace("selected-0", "selected-1");
+
+            prntOp2tm.classList.replace("hidden", "visible");
+            prntOp1tm.classList.replace("visible", "hidden");
+
+            content.classList.replace("display", "invisible");
+            scrBr.classList.replace("display", "invisible");
+            scrBrX.classList.replace("display", "invisible");
+            scrBrH.classList.replace("display", "invisible");
+            scrBrHW.classList.replace("display", "invisible");
+        }
+    }
+    /*
+    if(n == 1 && checkClass.classList.contains("selected-0")){ 
+    }
+    if(n == 2 && checkClass.classList.contains("selected-1")){
+    }
+    */
+}
+
+document.getElementById("prnt-o-1-gaid").addEventListener('click', (e) => {
+    if(!condFileOpen) return;
+    content.style.width = '144px';
+    content.style.height = '14px';
+    content.style.marginTop = '177.271px';
+    content.style.marginLeft = '63.6702px';
+});
+
+///             MISCELLANEOUS
+
+function showContex() {
+    const overlayCanvas = document.getElementById("overlay");
+    const overlayCtx = overlayCanvas.getContext("2d");
+
+    const yhDiv = document.getElementById('cs-1id');
+    const yhStyle = window.getComputedStyle(yhDiv);
+    const y = parseFloat(yhStyle.marginTop) + 2;
+    const h = parseFloat(yhStyle.height);
+
+    //rgba(0, 255, 0, 0.5);
+    overlayCtx.fillStyle = "rgba(0, 255, 0, 0.5)";
+    overlayCtx.fillRect(crop.x, y, crop.w, h);
+    console.log('cor:' + crop.x + ',' + y + ',' + crop.w + ',' + h);
+}
+
+function processName() {
+    const fileInput = document.getElementById("fileInput");
+    if (!fileInput.files.length) return;
+    wlg.innerText = fileInput.files[0].name;
+    cropPDF();
+}
