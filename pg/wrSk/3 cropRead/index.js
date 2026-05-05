@@ -17,6 +17,17 @@ let clmnTrkn = '';
 let datacsv = [];
 let accrl = 0;
 
+const leorange = '<div class=\"txt-orange\"> ';
+const lered = '<div class=\"txt-red\"> ';
+const legreen = '<div class=\"txt-green\"> ';
+const ediv = '</div>';
+
+let exTrkcArr = new Array("1ZJ74 F69 YW 3588 6373","1ZJ74 F69 YW 8806 8925","1ZJ74 F69 YW 8563 8789");
+let matchTrackingFromPagesSet = new Set(exTrkcArr);
+let matchNumPages = 0;
+let matchTrackingFromPagesArr = exTrkcArr;
+let matchSkuFromPagesArr = [];
+
 ///         BUTTONS         ///
 
 const prntOp1 = document.querySelector('.prnt-o-1');
@@ -566,6 +577,8 @@ async function readLabels(pdfArg) {
 
     let fullText = "";
 
+    matchNumPages = pdf.numPages;
+
     for (let i = 1; i <= pdf.numPages; i++) {
         //status.innerText = "Processing page " + i + " / " + pdf.numPages;
 
@@ -811,6 +824,29 @@ function csvOpen(){
     //console.log(matchHeaderTags);
 }
 
+
+///             MATCH               ///
+
+function csvMatch(){
+    if (!condSkuFileOpen) return;
+    if (!condFileOpen) return;
+
+    const cout = document.getElementById("logger-mtch-errid");
+
+    cout.innerHTML = '';
+
+    matchSkuFromPagesArr = new Array(matchNumPages).fill('');
+
+    let tpnum = 1;
+    for(const tnum of matchTrackingFromPagesArr){
+        let infread = tnum.trim().toLowerCase();
+        /// CHECK
+        if(!infread || infread.length < 1) cout.innerHTML +=leorange+'WRN: pg. '+tpnum+' NO READ'+ediv;
+        if(!clmnTrkn || clmnTrkn.length < 1) cout.innerHTML +=lered+ediv;
+        
+        let infreq = '';
+    }
+}
 
 
 ///             BUTTONS             ///

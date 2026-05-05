@@ -51,6 +51,18 @@
     background-color: yellow;
 }
 
+.txt-red{
+    color: red;
+}
+
+.txt-green{
+    color:green;
+}
+
+.txt-orange{
+    color:orange;
+}
+
 /* Above label*/
 
 .prnt-o-1,
@@ -304,4 +316,12 @@
 
 .rnd-5f div{
     margin: 0px;
+}
+
+.logger-mtch-err-c{
+    display: block;
+    background-color: black;
+    color: white;
+    font-size: 12px;
+    margin: 30px 5px; 
 }
