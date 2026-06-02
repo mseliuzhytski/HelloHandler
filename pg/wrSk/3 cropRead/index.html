@@ -24,15 +24,18 @@
     }
   </style>
   <link rel="stylesheet" href="index.css">
+  <link rel="stylesheet" href="libs/theme.css">
   <script src="pdfjs/pdf-lib.min.js" defer></script>
   <script src="pdfjs/pdf.min.js" defer></script>
   <script src="tesseract/tesseract.min.js" defer></script>
+  <script src="libs/papaparse.min.js"></script>
   <script src="index.js" defer></script>
 </head>
 
 <body>
 
-  <h2>Test reading pdf</h2>
+  <h2>HH</h2>
+  <h4>Hello Handler</h2>
 
   <input type="file" id="fileInput" accept=".pdf"><br>
   <br>
@@ -42,7 +45,10 @@
 
   <div class="prnt-o-1-tm visible"><div class="prnt-o-1-m">
     <div>Templates:</div>
+    <div class="prnt-o-1-temp selected-0" id="prnt-o-1-naid">None</Template></div>
     <div class="prnt-o-1-temp selected-0" id="prnt-o-1-gaid">Ground Adventage</div>
+    <div class="prnt-o-1-temp selected-0" id="prnt-o-1-tktkupsid">TikTok UPS</div>
+    <div class="prnt-o-1-temp selected-0" id="prnt-o-1-tktkuspsid">TikTok USPS</div>
   </div></div>
   <div class="prnt-o-2-tm hidden"><div class="prnt-o-2-m">
     <div>Type sku:</div>
@@ -93,18 +99,15 @@
     </div>
 
   </div>
-  <div class="logger-c">
-    <div class="logger"></div>
-  </div>
   </div>
   <br><br>
 
   <button onclick="processName()">READ</button>
 
-  <div></div>
-
-  <h4>logging</h4>
-  <div id="txtoutid"></div>
+  <div class="logger-c">
+    <div class="logger"></div>
+  </div>
+  
   <br>
 
   <div class="mtch-sk-c">
@@ -145,12 +148,18 @@
     <div><input type="number" id="mtch-accr-iid"/></div>
     <div class="mtch-accr-btn selected-0" id="mtch-accr-btnid">%100</div>
     <div class="visible-f rnd-5f" id="mtch-accr-dsid"></div>
+    <div>length:</div>
     <div id="mtch-accr-dslngthid"></div>
   </div>
 
   <br>
-  <button onclick="csvMatch()">MATCH</button>
+  <div style="display: flex;">
+    <button onclick="csvMatchBtn()">MATCH</button>
+    <div style="margin-left:100px;"></div>
+    <button onclick="csvDwnldBtn()">DOWNLOAD</button>
+  </div>
   <br><br>
+  <div class="loader hidden" id="loadinganiid"></div> 
 
   <div class="logger-mtch-err-c">
     <div class="logger-mtch-err" id="logger-mtch-errid"></div>

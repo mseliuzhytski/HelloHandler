@@ -2,31 +2,36 @@
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "pdfjs/pdf.worker.min.js";
 
-const wlg = document.getElementById("txtoutid");
 const logger = document.querySelector('.logger');
 
 //let pdfReady;   
 let condFileOpen = false;
 //let condPdfReady = false;
 let condSkuFileOpen = false;
+let condScale2 = false;
 
-let matchHeaderTags = new Set();
+const matchHeaderTagsSet = new Set();
+const matchHeaderTags = [];
 let clmnSku = '';
 let clmnQ = '';
 let clmnTrkn = '';
 let datacsv = [];
 let accrl = 0;
 
+// Options: GA-SPST
+let templatelabel = '';
+
 const leorange = '<div class=\"txt-orange\"> ';
 const lered = '<div class=\"txt-red\"> ';
 const legreen = '<div class=\"txt-green\"> ';
 const ediv = '</div>';
 
-let exTrkcArr = new Array("1ZJ74 F69 YW 3588 6373","1ZJ74 F69 YW 8806 8925","1ZJ74 F69 YW 8563 8789");
-let matchTrackingFromPagesSet = new Set(exTrkcArr);
+//const exTrkcArr = ["1ZJ74 F69 YW 3588 6373","1ZJ74 F69 YW 8806 8925","1ZJ74 F69 YW 8563 8789"];
+const matchTrackingFromPagesSet = new Set();
 let matchNumPages = 0;
-let matchTrackingFromPagesArr = exTrkcArr;
-let matchSkuFromPagesArr = [];
+//const matchTrackingFromPagesArr = [Array.from(exTrkcArr)];
+const matchTrackingFromPagesArr = [];
+const matchSkuFromPagesArr = [];
 
 ///         BUTTONS         ///
 
@@ -350,7 +355,7 @@ async function pdfOpenResource() {
 
 document.getElementById("fileInput").addEventListener("change", previewPDFx);
 
-function previewPDFx(){previewPDF(0)}
+function previewPDFx() { previewPDF(0) }
 
 async function previewPDF(n) {
     /*
@@ -372,21 +377,21 @@ async function previewPDF(n) {
     ///     pdfReady shortcut
 
     let ipg = 1;
-    if(n != 0){
-        if(n != 3){
+    if (n != 0) {
+        if (n != 3) {
             const cn = parseInt(document.getElementById("pg-trvrs-curid").innerText);
-            if(n == 1){
-                if((cn - 1) <= 0) return;
+            if (n == 1) {
+                if ((cn - 1) <= 0) return;
                 else ipg = cn - 1;
-            }else{ /// n == 2
-                if((cn + 1) > pdf.numPages) return;
+            } else { /// n == 2
+                if ((cn + 1) > pdf.numPages) return;
                 else ipg = cn + 1;
             }
-        } else{ /// n == 3
+        } else { /// n == 3
             const sn = parseInt(document.getElementById("pg-trvrs-iid").value);
-            if(sn <= 0 || sn > pdf.numPages) return;
+            if (sn <= 0 || sn > pdf.numPages) return;
             else ipg = sn;
-        }   
+        }
     }
 
     const page = await pdf.getPage(ipg);
@@ -400,15 +405,20 @@ async function previewPDF(n) {
     //scalePrevW = contentH.offsetWidth / page.getViewport({ scale: 1 }).width;
     //scalePrevH = contentH.offsetHeight / page.getViewport({ scale: 1 }).height;
     //const scale = containerWidth / page.getViewport({ scale: 1 }).width;
-    const viewport = page.getViewport({ scale: 1 });
+    const viewportX = page.getViewport({ scale: 1 });
+
+    let vwprtscl = 1;
+    if(viewportX.width < 350){ vwprtscl = 2; condScale2 = true; }
+
+    const viewport = page.getViewport({ scale: vwprtscl });
 
     //const scaleCanvasHeight = document.querySelector('.l-c-c');
     //scaleCanvasHeight.style.height = Math.ceil(viewport.height) + 'px';
 
     labelContContainer.style.width = viewport.width + 'px';
     labelContContainer.style.height = viewport.height + 'px';
-    
-    if(n == 0){
+
+    if (n == 0) {
         content.style.width = (viewport.width - 4) + 'px';
         content.style.margin = '0px';
         contentA.style.width = (viewport.width - 4) + 'px';
@@ -442,7 +452,8 @@ async function previewPDF(n) {
 ///             Crop Label          ///
 
 
-async function cropPDF() {
+async function cropPDF(condArg) {
+    //console.log('crop():');
     const fileInput = document.getElementById("fileInput");
     if (!fileInput.files.length) return;
 
@@ -455,9 +466,18 @@ async function cropPDF() {
     const newPdf = await PDFDocument.create();
 
     for (let i = 1; i <= pdf.numPages; i++) {
+        if (condArg) {
+            //console.log('crop(): read only');
+            i = parseInt(document.getElementById("pg-trvrs-curid").innerText);
+        }
         const page = await pdf.getPage(i);
 
-        const viewport = page.getViewport({ scale: 1 }); // higher = better quality
+        //const viewport = page.getViewport({ scale: 1 }); // higher = better quality
+
+        const viewportX = page.getViewport({ scale: 1 });
+        let vwprtscl = 1;
+        if(viewportX.width < 350){ vwprtscl = 2; }
+        const viewport = page.getViewport({ scale: vwprtscl });
 
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
@@ -521,6 +541,7 @@ async function cropPDF() {
             width: img.width,
             height: img.height
         });
+        if (condArg) { i = pdf.numPages + 10; }
     }
 
     const pdfBytes = await newPdf.save();
@@ -535,13 +556,13 @@ async function cropPDF() {
 
     URL.revokeObjectURL(url);
     */
-    readLabels(pdfBytes);
+    readLabels(pdfBytes, condArg);
 }
 
 
 ///             Read Pdf            ///
 
-async function readLabels(pdfArg) {
+async function readLabels(pdfArg, rBtn) {
 
     /*
     const fileInput = document.getElementById('fileInput');
@@ -579,10 +600,23 @@ async function readLabels(pdfArg) {
 
     matchNumPages = pdf.numPages;
 
+    if (!rBtn) {
+        matchTrackingFromPagesArr.length = 0;
+        matchTrackingFromPagesSet.clear();
+    }
+
     for (let i = 1; i <= pdf.numPages; i++) {
         //status.innerText = "Processing page " + i + " / " + pdf.numPages;
 
-        const page = await pdf.getPage(i);
+        let page;
+
+        if (rBtn) {
+            //console.log('read(): read only');
+            i = parseInt(document.getElementById("pg-trvrs-curid").innerText);
+            page = await pdf.getPage(1);
+        } else {
+            page = await pdf.getPage(i);
+        }
         const viewport = page.getViewport({ scale: 2 });
 
         const canvas = document.createElement('canvas');
@@ -598,14 +632,20 @@ async function readLabels(pdfArg) {
 
         const { data: { text } } = await worker.recognize(canvas);
 
-        fullText += "\n\n--- Page " + i + " ---\n\n" + text;
-        //output.innerText = fullText;
+        fullText += text;
+
+        if (!rBtn) { matchTrackingFromPagesArr.push(text.trim()); }
+        else { logger.innerText = fullText; }
     }
-    //console.log(fullText);
-    logger.innerText = fullText;  
+    //logger.innerText = fullText;  
 
     await worker.terminate();
     //status.innerText = "Done ✅";
+
+    if (!rBtn) {
+        //console.log(matchTrackingFromPagesArr);
+        csvMatch();
+    }
 }
 
 ///             CVS                 ///
@@ -621,22 +661,22 @@ function csvParseHeaders(text) {
         let ntag = x;
         //if(x[0] == '\"'){x = x.replaceAll("\"","");}
         ntagi = ntag;
-       for(let fi = 1; fi < 10; fi++){
-            if(!matchHeaderTags.has(ntagi)){ 
-                matchHeaderTags.add(ntagi);
+        for (let fi = 1; fi < 10; fi++) {
+            if (!matchHeaderTagsSet.has(ntagi)) {
+                matchHeaderTagsSet.add(ntagi);
                 fi = 10;
             }
-            else { ntagi = ntag+'-'+fi;}
-       }
+            else { ntagi = ntag + '-' + fi; }
+        }
         ntag = ntagi;
-        //matchHeaderTags.push(ntag);
+        //matchHeaderTagsSet.push(ntag);
         data[ntag] = [];
     });
-    //console.log(matchHeaderTags);
+    //console.log(matchHeaderTagsSet);
     rows.slice(1).map(row => {
         let obj = {};
         let ri = 0;
-        for(const h of matchHeaderTags){
+        for (const h of matchHeaderTagsSet) {
             //obj[h] = row[i]?.trim();
             //console.log(h,row[i]);
             data[h].push(row[ri]?.trim());
@@ -647,13 +687,42 @@ function csvParseHeaders(text) {
     return data;
 }
 
+function csvPapaParcer(text) {
+  const result = Papa.parse(text, {
+    skipEmptyLines: true
+  });
+
+  let headers = result.data[0];
+  let rows = result.data.slice(1);
+
+  const headerCount = {};
+  const matchHeadersTags = headers.map(h => {
+    if (!headerCount[h]) {
+      headerCount[h] = 1;
+      return h;
+    }
+    headerCount[h]++;
+    return `${h}-${headerCount[h]}`;
+  });
+
+  const data = {};
+  matchHeadersTags.forEach((h, colIndex) => {
+    matchHeaderTags.push(h);
+    data[h] = rows.map(row =>
+      (row[colIndex] || "").replace(/\n/g, " || ")
+    );
+  });
+
+  return data;
+}
+
 document.getElementById("cfileInput").addEventListener("change", csvOpen);
 
-function csvEnableDivs(){
+function csvEnableDivs() {
     const chk = document.getElementById("ds-hdrs-sl-qckid");
     const btn = document.getElementById("ds-hdrs-sl-qid");
     const ln = document.getElementById("mtch-sk-ds-hdrs-sl-cqid");
-    if(chk.checked){
+    if (chk.checked) {
         ln.style.color = 'black';
         btn.classList.remove("ds-hdrs-sl-bq");
         btn.classList.add("selected-0");
@@ -663,39 +732,39 @@ function csvEnableDivs(){
         btn.classList.add("ds-hdrs-sl-bq");
         btn.innerText = 'show';
         const tags = document.getElementById("ds-hdrs-a-qid");
-        if(!tags.classList.contains("hidden")) tags.classList.replace("visible","hidden");
+        if (!tags.classList.contains("hidden")) tags.classList.replace("visible", "hidden");
     }
 }
 
-function csvDisableDivs(){
+function csvDisableDivs() {
     const chk = document.getElementById("ds-hdrs-sl-qckid");
     const btn = document.getElementById("ds-hdrs-sl-qid");
     const ln = document.getElementById("mtch-sk-ds-hdrs-sl-cqid");
-    if(chk.checked){
+    if (chk.checked) {
         ln.style.color = 'grey';
         btn.classList.remove("selected-0");
         btn.classList.add("ds-hdrs-sl-bq");
         btn.innerText = 'show';
         const tags = document.getElementById("ds-hdrs-a-qid");
-        if(!tags.classList.contains("hidden")) tags.classList.replace("visible","hidden");
+        if (!tags.classList.contains("hidden")) tags.classList.replace("visible", "hidden");
     }
 }
 
-function csvTagsClick(n,x){
+function csvTagsClick(n, x) {
     let dsid = '';
     let dsexid = '';
     let tagsid = '';
-    if(n == 1){
+    if (n == 1) {
         dsid = "ds-hdrs-sl-optn-skid";
         dsexid = "ds-hdrs-sl-exskid";
         tagsid = "ds-hdrs-a-skid";
     }
-    if(n == 2){
+    if (n == 2) {
         dsid = "ds-hdrs-sl-optn-qid";
         dsexid = "ds-hdrs-sl-exqid";
         tagsid = "ds-hdrs-a-qid";
     }
-    if(n == 3){
+    if (n == 3) {
         dsid = "ds-hdrs-sl-optn-trknid";
         dsexid = "ds-hdrs-sl-extrknid";
         tagsid = "ds-hdrs-a-trknid";
@@ -703,29 +772,29 @@ function csvTagsClick(n,x){
     const skuDs = document.getElementById(dsid);
     const skuDsEx = document.getElementById(dsexid);
     const skuTags = document.getElementById(tagsid);
-    if(skuDs.innerText === x) return;
-    switch (n){
+    if (skuDs.innerText === x) return;
+    switch (n) {
         case 1: clmnSku = x; break;
         case 2: clmnQ = x; break;
         case 3: clmnTrkn = x; break;
     }
     skuDs.innerText = x;
     skuDsEx.innerHTML = datacsv[x][0];
-    for(const child of skuTags.children){
-        if(child.innerText.trim() === x.trim()) {child.classList.replace("selected-0","selected-1");}
-        else { if(child.classList.contains("selected-1")) {child.classList.replace("selected-1","selected-0");}}
+    for (const child of skuTags.children) {
+        if (child.innerText.trim() === x.trim()) { child.classList.replace("selected-0", "selected-1"); }
+        else { if (child.classList.contains("selected-1")) { child.classList.replace("selected-1", "selected-0"); } }
     }
 }
 
-function csvAutoTagsClear(){
-    const obj = [['',''],['',''],['','']];
-    obj[0][0]="ds-hdrs-sl-optn-skid";
-    obj[0][1]="ds-hdrs-sl-exskid";
-    obj[1][0]="ds-hdrs-sl-optn-qid";
-    obj[1][1]="ds-hdrs-sl-exqid";
-    obj[2][0]="ds-hdrs-sl-optn-trknid";
-    obj[2][1]="ds-hdrs-sl-extrknid";
-    for(n = 0; n <= 2; n++){
+function csvAutoTagsClear() {
+    const obj = [['', ''], ['', ''], ['', '']];
+    obj[0][0] = "ds-hdrs-sl-optn-skid";
+    obj[0][1] = "ds-hdrs-sl-exskid";
+    obj[1][0] = "ds-hdrs-sl-optn-qid";
+    obj[1][1] = "ds-hdrs-sl-exqid";
+    obj[2][0] = "ds-hdrs-sl-optn-trknid";
+    obj[2][1] = "ds-hdrs-sl-extrknid";
+    for (n = 0; n <= 2; n++) {
         dsid = obj[n][0];
         dsexid = obj[n][1];
         const skuDs = document.getElementById(dsid);
@@ -735,64 +804,74 @@ function csvAutoTagsClear(){
     }
 }
 
-function csvAutoSlTags(){
+function csvAutoSlTags() {
     let dsid = '';
     let dsexid = '';
     let tagsid = '';
     let autosl = false;
-    for(const v of matchHeaderTags){
+    let foundSku, foundQ, foundTrkn = false;
+    for (const v of matchHeaderTags) {
         //console.log(v.trim().toLowerCase());
-        if(v.trim().toLowerCase().includes("sku")){
+        if (v.trim().toLowerCase().includes("sku") && !foundSku) {
             dsid = "ds-hdrs-sl-optn-skid";
             dsexid = "ds-hdrs-sl-exskid";
             tagsid = "ds-hdrs-a-skid";
+            clmnSku = v;
+            foundSku = true;
             autosl = true;
         }
-        if(v.trim().toLowerCase().includes("quant")){
+        if (v.trim().toLowerCase().includes("quant") && !foundQ) {
             dsid = "ds-hdrs-sl-optn-qid";
             dsexid = "ds-hdrs-sl-exqid";
             tagsid = "ds-hdrs-a-qid";
+            clmnQ = v;
+            foundQ = true;
             autosl = true;
         }
-        if(v.trim().toLowerCase().includes("track")){
+        if (v.trim().toLowerCase().includes("track") && !foundTrkn) {
             dsid = "ds-hdrs-sl-optn-trknid";
             dsexid = "ds-hdrs-sl-extrknid";
             tagsid = "ds-hdrs-a-trknid";
+            clmnTrkn = v;
+            foundTrnk = true;
             autosl = true;
-        } else {}
-        if(autosl){
+        } else { }
+        if (autosl) {
             const skuDs = document.getElementById(dsid);
             const skuDsEx = document.getElementById(dsexid);
             const skuTags = document.getElementById(tagsid);
-            for(const child of skuTags.children){
-                if(child.innerText.trim() === v.trim()) {child.classList.replace("selected-0","selected-1");}
-                else { if(child.classList.contains("selected-1")) {child.classList.replace("selected-1","selected-0");}}
+            for (const child of skuTags.children) {
+                if (child.innerText.trim() === v.trim()) { child.classList.replace("selected-0", "selected-1"); }
+                else { if (child.classList.contains("selected-1")) { child.classList.replace("selected-1", "selected-0"); } }
             }
             skuDs.innerText = v;
             skuDsEx.innerHTML = datacsv[v][0];
+            let datav = datacsv[v][0].trim();
             autosl = false;
         }
     }
 }
 
 
-function csvOpen(){
+function csvOpen() {
     condSkuFileOpen = false;
-    if (!cfileInput.files.length){
+    if (!cfileInput.files.length) {
         csvDisableDivs();
         return;
     }
-    else csvEnableDivs();
+    else { csvEnableDivs(); }
     condSkuFileOpen = true;
+
     const file = cfileInput.files[0];
 
     const reader = new FileReader();
 
-    reader.onload = function(e) {
+    reader.onload = function (e) {
 
-        matchHeaderTags.clear();
-        datacsv = csvParseHeaders(e.target.result);
+        matchHeaderTags.length = 0;
+        datacsv = csvPapaParcer(e.target.result);
         //console.log(datacsv);
+        //console.log(matchHeaderTags);
         const hdrMenuSk = document.getElementById("ds-hdrs-a-skid");
         hdrMenuSk.innerHTML = '';
         const hdrMenuQ = document.getElementById("ds-hdrs-a-qid");
@@ -800,7 +879,7 @@ function csvOpen(){
         const hdrMenuTrkn = document.getElementById("ds-hdrs-a-trknid");
         hdrMenuTrkn.innerHTML = '';
 
-        for(const x of matchHeaderTags){
+        for (const x of matchHeaderTags) {
             //console.log(x,i);
             const newDiv = document.createElement('div');
             newDiv.classList.add('ds-hdrs-sk-tg');
@@ -808,15 +887,16 @@ function csvOpen(){
             newDiv.innerText = x;
             const newDiv2 = newDiv.cloneNode(true);
             const newDiv3 = newDiv.cloneNode(true);
-            newDiv.addEventListener('click', (e) => {csvTagsClick(1,x);});
-            newDiv2.addEventListener('click', (e) => {csvTagsClick(2,x);});
-            newDiv3.addEventListener('click', (e) => {csvTagsClick(3,x);});
+            newDiv.addEventListener('click', (e) => { csvTagsClick(1, x); });
+            newDiv2.addEventListener('click', (e) => { csvTagsClick(2, x); });
+            newDiv3.addEventListener('click', (e) => { csvTagsClick(3, x); });
             hdrMenuSk.appendChild(newDiv);
             hdrMenuQ.appendChild(newDiv2);
             hdrMenuTrkn.appendChild(newDiv3);
         }
         csvAutoTagsClear();
         csvAutoSlTags();
+        csvAccuarcyInput(accrl);
     };
 
     reader.readAsText(file);
@@ -827,25 +907,222 @@ function csvOpen(){
 
 ///             MATCH               ///
 
-function csvMatch(){
+function startLoadingAni(cond){
+    const dv = document.getElementById("loadinganiid");
+    if(cond){ dv.classList.replace("hidden", "visible"); }
+    else{ dv.classList.replace("visible", "hidden"); }
+}
+
+async function csvMatchBtn() {
     if (!condSkuFileOpen) return;
     if (!condFileOpen) return;
 
+    startLoadingAni(true);
+    // Let UI update BEFORE blocking work starts
+    /*setTimeout(() => {
+        cropPDF(false);
+        startLoadingAni(false);
+    }, 0);
+    */
+   // use with async
+   await new Promise(resolve => setTimeout(resolve, 0));
+   await cropPDF(false);
+}
+
+function csvMatch() {
+
     const cout = document.getElementById("logger-mtch-errid");
+    const chkQ = document.getElementById("ds-hdrs-sl-qckid");
+    let lni = 1;
+    //const accrv = document.getElementById("mtch-accr-iid");
 
     cout.innerHTML = '';
 
-    matchSkuFromPagesArr = new Array(matchNumPages).fill('');
+    matchSkuFromPagesArr.length = matchNumPages;
+    matchSkuFromPagesArr.forEach(x => x = 'NA');
 
     let tpnum = 1;
-    for(const tnum of matchTrackingFromPagesArr){
-        let infread = tnum.trim().toLowerCase();
-        /// CHECK
-        if(!infread || infread.length < 1) cout.innerHTML +=leorange+'WRN: pg. '+tpnum+' NO READ'+ediv;
-        if(!clmnTrkn || clmnTrkn.length < 1) cout.innerHTML +=lered+ediv;
-        
-        let infreq = '';
+    //console.log('data:',datacsv);
+    //console.log('SQT',clmnSku,clmnQ,clmnTrkn);
+    //console.log('accrl',accrl);
+
+    const datacsvo = Object.values(datacsv[clmnTrkn]);
+
+    if (!clmnTrkn || clmnTrkn.length < 1) { cout.innerHTML += lered + lni + ': ' + 'Tracking column not selected' + ediv; lni++; }
+    if (!clmnSku || clmnSku.length < 1) { cout.innerHTML += lered + lni + ': ' + 'Sku column not selected' + ediv; lni++; }
+    if (!datacsvo || datacsvo.length < 1) { cout.innerHTML += leorange + lni + ': ' + 'No Tracking column values' + ediv; lni++; }
+
+    const rwarr = [];
+    for (let rwarri = 2; rwarri < datacsvo.length + 2; rwarri++) {
+        rwarr.push(rwarri);
     }
+
+    for (const tnum of matchTrackingFromPagesArr) {
+        let infread = tnum.trim().replaceAll(' ', '').toUpperCase();
+        let infreada = infread;
+        /// CHECK
+        if (!infread || infread.length < 1) { cout.innerHTML += leorange + lni + ': ' + 'WRN: pg. ' + tpnum + ' NO READ' + ediv; lni++; }
+
+        let infreqt = '';
+        let infreqa = '';
+        //let infreqr = '';
+        let infquant = 0;
+        let infitemi = 0;
+        let infsku = '';
+
+        let mtchfound = false;
+
+        for (let rwi = 0; rwi < datacsvo.length; rwi++) {
+            const rwvraw = datacsvo[rwi];
+            if (!rwvraw || rwvraw.length < 1) {
+                cout.innerHTML += leorange + lni + ': ' + 'column: ' + clmnTrkn + ' row: ' + rwarr[rwi] + ' EMPTY' + ediv; lni++;
+                datacsvo.splice(rwi, 1);
+                rwarr.splice(rwi, 1);
+                rwi--;
+            } else {
+                let rwv = rwvraw.trim();
+                if (rwv[0] === '\"') { rwv = rwv.slice(1, rwv.length - 1); }
+                infreqt = rwv.replaceAll(' ', '').toUpperCase();
+                if (accrl == 0 || accrl == rwv.length) {
+                    infreqa = infreqt;
+                    //infreqr = '';
+                } else {
+                    infreqa = infreqt.slice((infreqt.length - accrl), (infreqt.length));
+                    //infreqr = infreqt.slice(0, (infreqt.length - accrl));
+                    infreada = infread.slice((infread.length - accrl), infread.length);
+                }
+
+                if (infreqa === infreada) {
+                    mtchfound = true;
+
+                    let qv = 0;
+                    let sv = '';
+                    if (matchTrackingFromPagesSet.has(rwvraw)) {
+                        if (chkQ.checked && !clmnQ.length < 1) {
+                            qv = parseInt(datacsv[clmnQ][rwarr[rwi] - 2]);
+                            if (!qv || qv < !Number.isInteger(qv) || qv < 1) {
+                                cout.innerHTML += lered + lni + ': ' + 'qauntity column:' + clmnQ + ' -> value ERROR row: ' + rwarr[rwi] + ' !!!' + ediv; lni++;
+                            } else {
+                                infquant += qv;
+                            }
+                        } else {
+                            infquant++;
+                            qv++;
+                        }
+                        sv = datacsv[clmnSku][rwarr[rwi] - 2].trim();
+                        if (infsku !== sv) {
+                            infitemi++;
+                            infsku = '( ' + infitemi + ' items )';
+                        }
+                    } else {
+                        matchTrackingFromPagesSet.add(rwvraw);
+                        infquant = 1;
+                        qv = 1;
+                        infitemi = 1;
+                        if (chkQ.checked && !clmnQ.length < 1) {
+                            qv = parseInt(datacsv[clmnQ][rwarr[rwi] - 2]);
+                            if (!qv || qv < !Number.isInteger(qv) || qv < 1) {
+                                cout.innerHTML += lered + lni + ': ' + 'qauntity column:' + clmnQ + ' -> value ERROR row: ' + rwarr[rwi] + ' !!!' + ediv; lni++;
+                            } else {
+                                infquant = qv;
+                            }
+                        } else { }
+                        sv = datacsv[clmnSku][rwarr[rwi] - 2].trim();
+                        if (!sv || sv.length < 1) {
+                            cout.innerHTML += lered + lni + ': ' + 'sku column:' + clmnSku + ' -> value ERROR row: ' + rwarr[rwi] + ' !!!' + ediv; lni++;
+                            infsku = 'ERROR';
+                        } else {
+                            infsku = sv;
+                        }
+                    }
+                    cout.innerHTML += legreen + lni + ': row:' + rwarr[rwi] + ' MATCH'+ ' pg: '+ tpnum  + ' Rdt: ' + infread + ' | Rqt: ' + infreqt +' || '+qv+'x '+sv+ediv; lni++;
+                    datacsvo.splice(rwi, 1);
+                    rwarr.splice(rwi, 1);
+                    rwi--;
+                }
+            }
+        }
+        if (!mtchfound) {
+            //cout.innerHTML += legreen + lni+': '+'- - - - -' + ediv;lni++;
+            //cout.innerHTML += legreen + lni+': '+'Rd:'+infread + ' | Rda: '+ infreada+ ediv;lni++;
+            cout.innerHTML += lered + lni + ': ' + 'NO MATCH FOUND'+ ' pg: '+ tpnum  + ' Rdt: ' + infread + ediv; lni++;
+            //cout.innerHTML += legreen + lni+': '+'- - - - -' + ediv;lni++;
+        } else {
+            matchSkuFromPagesArr[tpnum] = +infquant + 'x ' + infsku;
+            if(infquant > 1){
+                cout.innerHTML += leorange + lni + ': ' + 'WRITE SKU' + ' pg: '+ tpnum + ' || '+infquant + 'x ' + infsku+ ediv; lni++;
+            }
+        }
+        tpnum++;
+    }
+    startLoadingAni(false);
+}
+
+
+///             DOWNLOAD            ///
+
+async function csvDwnldBtn(){
+
+    if(!condFileOpen || matchSkuFromPagesArr.length < 1){
+        console.log('no skus to print'); 
+        return;
+    }
+
+    const fileInput = document.getElementById("fileInput");
+    if (!fileInput.files.length) return;
+
+    const file = fileInput.files[0];
+    const arrayBuffer = await file.arrayBuffer();
+
+    // Load PDF with pdf-lib
+    const { PDFDocument, rgb, StandardFonts } = PDFLib;
+    const pdfDoc = await PDFDocument.load(arrayBuffer);
+
+    const pages = pdfDoc.getPages();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+    pages.forEach((page, index) => {
+        const { width, height } = page.getSize();
+
+        // Example: get value from your array
+        const text = matchSkuFromPagesArr[index+1] || "N/A";
+
+        let xc = parseFloat(contentA.style.marginLeft);
+        let yc = (parseFloat(contentA.style.marginTop) + 16);
+        let fontsize = 12;
+
+        if(text.length > 22){fontsize = 6;}
+        if(text.length > 20){fontsize = 8;}
+        if(text.length > 18){fontsize = 10;}
+
+        if(condScale2){
+            xc /= 2;
+            yc /= 2;
+        }
+
+        page.drawText(text, {   
+            x: xc,
+            y: height - yc,
+            size: fontsize,
+            font: font,
+            color: rgb(0, 0, 0),
+        });
+    });
+
+    // Save modified PDF
+    const pdfBytes = await pdfDoc.save();
+
+    // Trigger download
+    const blob = new Blob([pdfBytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "modified.pdf";
+    a.click();
+
+    URL.revokeObjectURL(url);
+
 }
 
 
@@ -884,63 +1161,76 @@ document.getElementById("ds-hdrs-sl-trknid").addEventListener('click', (e) => {
 });
 
 document.getElementById("ds-hdrs-sl-qckid").addEventListener('change', (e) => {
-    if(!condSkuFileOpen) return;
+    if (!condSkuFileOpen) return;
     csvEnableDivs();
 });
 
-document.getElementById("mtch-accr-iid").addEventListener("change", (e) => {csvAccuarcyInput(e.target.value);});
+document.getElementById("mtch-accr-iid").addEventListener("change", (e) => { csvAccuarcyInput(e.target.value); });
 
-function csvAccuarcyInput(n){
-    if(!condSkuFileOpen) return;
-    const extxt = document.getElementById("ds-hdrs-sl-extrknid");
+function csvAccuarcyInput(n) {
+    //console.log('accrl':accrl);
+    const dsinptv = document.getElementById("mtch-accr-iid");
     let v = parseInt(n);
+    if (!condSkuFileOpen) {
+        dsinptv.value = v;
+        return;
+    }
+    const extxtraw = document.getElementById("ds-hdrs-sl-extrknid");
+    const extxt = extxtraw.innerText.trim();
     const dsex = document.getElementById("mtch-accr-dsid");
     const dsexlngth = document.getElementById("mtch-accr-dslngthid");
-    const vl = extxt.innerText.length-2;
-    const vtxt = extxt.innerText.trim();
-    dsexlngth.innerText = vl;
-    if(v <= 0 || v > vl) v = vl;
-    accrl = v;
-    let dif = vl - v;
-    dsex.innerHTML = '\"'+vtxt.slice(1,dif+1) + '<div class=\"highlighted\">' + vtxt.slice(dif+1,vl+1) + '</div>\"';  
+    if (extxt.at(0) === '\"') {
+        const vl = extxt.length - 2;
+        const vtxt = extxt;
+        dsexlngth.innerText = vl;
+        if (v <= 0 || v > vl){ v = vl };
+        accrl = v;
+        let dif = vl - v;
+        dsex.innerHTML = '\"' + vtxt.slice(1, dif + 1) + '<div class=\"highlighted-g\">' + vtxt.slice(dif + 1, vl + 1) + '</div>\"';
+    } else {
+        const vl = extxt.length;
+        const vtxt = extxt;
+        dsexlngth.innerText = vl;
+        if (v <= 0 || v > vl){ v = vl };
+        accrl = v;
+        let dif = vl - v;
+        dsex.innerHTML = '\"' + vtxt.slice(0, dif) + '<div class=\"highlighted-g\">' + vtxt.slice(dif, vl) + '</div>\"';
+    }
+    dsinptv.value = v;
 }
 
 document.getElementById("mtch-accr-btnid").addEventListener('click', (e) => {
-    const extxt = document.getElementById("ds-hdrs-sl-extrknid");
-    const inv = document.getElementById("mtch-accr-iid");
-    let l = extxt.innerText.length-2;
-    inv.value = l;
-    csvAccuarcyInput(l);
+    csvAccuarcyInput(0);
 });
 
-function displayHeaderTagsToggle(n){
-    if(!condSkuFileOpen) return;
+function displayHeaderTagsToggle(n) {
+    if (!condSkuFileOpen) return;
     let btnid = "";
     let dsid = "";
-    if(n == 2){
+    if (n == 2) {
         const n2ck = document.getElementById("ds-hdrs-sl-qckid");
-        if(!n2ck.checked) return;
+        if (!n2ck.checked) return;
         btnid = "ds-hdrs-sl-qid";
         dsid = "ds-hdrs-a-qid";
-    } 
-    if(n == 1){
+    }
+    if (n == 1) {
         btnid = "ds-hdrs-sl-skid";
         dsid = "ds-hdrs-a-skid";
     }
-    if(n == 3){
+    if (n == 3) {
         btnid = "ds-hdrs-sl-trknid";
         dsid = "ds-hdrs-a-trknid";
     }
     const btn = document.getElementById(btnid);
     const dscl = document.getElementById(dsid);
-    if(dscl.classList.contains("hidden")){
+    if (dscl.classList.contains("hidden")) {
         btn.innerText = 'hide';
-        dscl.classList.replace("hidden","visible");
+        dscl.classList.replace("hidden", "visible");
     } else {
         btn.innerText = 'show';
-        dscl.classList.replace("visible","hidden");
+        dscl.classList.replace("visible", "hidden");
     }
-    
+
 }
 
 function prntOptions1n2(n) {
@@ -992,11 +1282,56 @@ function prntOptions1n2(n) {
 }
 
 document.getElementById("prnt-o-1-gaid").addEventListener('click', (e) => {
-    if(!condFileOpen) return;
-    content.style.width = '144px';
-    content.style.height = '14px';
-    content.style.marginTop = '177.271px';
-    content.style.marginLeft = '63.6702px';
+    templatelabel = 'NA';
+});
+
+document.getElementById("prnt-o-1-gaid").addEventListener('click', (e) => {
+    if (!condFileOpen) return;
+    content.style.width = '305px';
+    content.style.height = '23px';
+    content.style.marginTop = '353px';
+    content.style.marginLeft = '128px';
+
+    contentA.style.marginLeft = '293px';
+    contentA.style.marginTop = '635.5px';
+
+    templatelabel = 'GA-SPST';
+
+    accrl = 8;
+    csvAccuarcyInput(8);
+
+});
+
+document.getElementById("prnt-o-1-tktkupsid").addEventListener('click', (e) => {
+    if (!condFileOpen) return;
+    content.style.width = '247px';
+    content.style.height = '23px';
+    content.style.marginTop = '419px';
+    content.style.marginLeft = '106px';
+
+    contentA.style.marginLeft = '91.5px';
+    contentA.style.marginTop = '614.5px';
+
+    templatelabel = 'UPS-TKTK';
+
+    accrl = 13;
+    csvAccuarcyInput(13);
+});
+
+document.getElementById("prnt-o-1-tktkuspsid").addEventListener('click', (e) => {
+    if (!condFileOpen) return;
+    content.style.width = '461px';
+    content.style.height = '23px';
+    content.style.marginTop = '419px';
+    content.style.marginLeft = '106px';
+
+    contentA.style.marginLeft = '46.5px';
+    contentA.style.marginTop = '614.5px';
+
+    templatelabel = 'USPS-TKTK';
+
+    accrl = 22;
+    csvAccuarcyInput(22);
 });
 
 ///             MISCELLANEOUS
@@ -1019,6 +1354,5 @@ function showContex() {
 function processName() {
     const fileInput = document.getElementById("fileInput");
     if (!fileInput.files.length) return;
-    wlg.innerText = fileInput.files[0].name;
-    cropPDF();
+    cropPDF(true);
 }
