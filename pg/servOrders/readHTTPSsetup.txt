@@ -1,0 +1,105 @@
+Step 1 — Point Your Domain to AWS in GoDaddy
+
+Log into GoDaddy → My Products → DNS for your domain
+Find the A record (type = A, name = @)
+Edit it → set Value to your AWS Public IP (the one from EC2 console)
+Set TTL to 600 seconds (10 min) so it propagates fast
+Save
+
+If you want to use a subdomain like api.yourdomain.com instead of the root domain, add a new A record:
+
+Type: A
+Name: api
+Value: <YOUR_AWS_IP>
+TTL: 600
+
+
+DNS propagation usually takes 5–15 minutes with GoDaddy. You can check it with ping yourdomain.com from your machine — when it resolves to your AWS IP, you're ready.
+
+
+Step 2 — Install Nginx on Your AWS Instance
+bashsudo apt update
+sudo apt install -y nginx
+sudo systemctl enable nginx
+sudo systemctl start nginx
+Verify it works — open http://<YOUR_AWS_IP> in a browser, you should see the Nginx welcome page.
+
+Step 3 — Open Port 80 and 443 in AWS Security Group
+
+EC2 Console → Security Groups → your group (launch-wizard-2)
+Edit Inbound Rules → Add two rules:
+
+TypePortSourceHTTP800.0.0.0/0HTTPS4430.0.0.0/0
+
+Save — Let's Encrypt needs port 80 to verify your domain.
+
+
+Step 4 — Configure Nginx as a Reverse Proxy
+bashsudo nano /etc/nginx/sites-available/shipstation
+Paste this (replace api.yourdomain.com with your actual domain/subdomain):
+nginxserver {
+    listen 80;
+    server_name api.yourdomain.com;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+Save (Ctrl+O, Enter, Ctrl+X), then enable it:
+bash# Enable the site
+sudo ln -s /etc/nginx/sites-available/shipstation /etc/nginx/sites-enabled/
+
+# Remove default site
+sudo rm /etc/nginx/sites-enabled/default
+
+# Test config
+sudo nginx -t
+
+# Reload Nginx
+sudo systemctl reload nginx
+
+Step 5 — Install Certbot and Get SSL Certificate
+bash# Install Certbot
+sudo apt install -y certbot python3-certbot-nginx
+
+# Get the certificate (replace with your domain)
+sudo certbot --nginx -d api.yourdomain.com
+Certbot will ask you a few things:
+
+Email address — for renewal reminders
+Agree to terms → A
+Share email with EFF → up to you, N is fine
+
+If successful you'll see:
+Successfully received certificate.
+Certificate is saved at: /etc/letsencrypt/live/api.yourdomain.com/fullchain.pem
+Certbot automatically updates your Nginx config to handle HTTPS and redirect HTTP → HTTPS.
+
+Step 6 — Verify HTTPS is Working
+bashcurl https://api.yourdomain.com/health
+Should return:
+json{ "status": "ok", "shipmentsStored": 0, "uptime": 123.4 }
+
+Step 7 — Auto-Renew the Certificate
+Let's Encrypt certs expire every 90 days. Certbot sets up auto-renewal automatically — verify it:
+bashsudo certbot renew --dry-run
+If it says Congratulations, all simulated renewals succeeded you're all set — it'll renew itself silently forever.
+
+Step 8 — Configure ShipStation Webhook
+Now you can use HTTPS in ShipStation:
+
+ShipStation → Settings → Integrations → Webhooks → Add Webhook
+Set:
+
+Name: Packing Station
+URL: https://api.yourdomain.com/webhook
+Event: Ship Notify
+
+
+Save ✅

@@ -1,0 +1,22 @@
+I have ShipStation account where I receive many orders, I want to, after I print labels and go to packing station, make sure that tracking and sku are correct when I pack physical product. At packing station I will scan the tracking barcode on a label and I will scan the sku barcode on a product. I want static HTML page that has input for tracking and input for sku and display field. Display field shows list of quantity and sku per line that matches tracking number that was just scanned. And below all that a display table with refresh button that shows all the order that were shipped from ShipStation with following columns Order number, Tracking number, quantity, sku.
+
+I have AWS instance running, I want to use it as backend server that receives shipped shipments and communicates them to my static HTML page to build the table with shipped orders.
+
+I need to know if ShipStation can send out shipped orders?
+
+
+ANSWER
+
+What You Need to Build
+On AWS (backend):
+
+A small Express (Node) or Flask (Python) server
+POST /webhook — receives ShipStation ping, fetches shipment detail, stores it
+GET /shipments — returns all stored shipments to the HTML page
+GET /shipment/:tracking — returns SKU/qty for a specific tracking number
+
+Static HTML page:
+
+Scan tracking → calls your AWS API → shows SKUs/qtys for that shipment
+Scan SKU → validates against expected SKUs for that tracking
+Table of all shipments with refresh button

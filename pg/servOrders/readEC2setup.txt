@@ -1,0 +1,73 @@
+Step 1 — Launch the EC2 Instance
+
+Go to AWS Console → EC2 → Launch Instance
+Fill in:
+
+Name: shipstation-packing-backend
+AMI: Ubuntu Server 24.04 LTS (64-bit x86)
+Instance type: t3.micro
+Key pair: Create a new key pair → name it shipstation-key → download the .pem file, keep it safe
+
+
+Under Network settings → Firewall (Security Groups) click Create security group and add these rules:
+
+TypeProtocolPortSourceWhySSHTCP22My IPSo only you can SSH inCustom TCPTCP30000.0.0.0/0ShipStation webhook + HTML page
+
+Storage: 8 GB gp3 (default) is fine
+Click Launch Instance
+
+
+Step 2 — SSH Into the Instance
+bash# Fix key permissions (Mac/Linux)
+chmod 400 ~/Downloads/shipstation-key.pem
+
+# Connect (get your Public IP from EC2 console)
+ssh -i ~/Downloads/shipstation-key.pem ubuntu@<YOUR_PUBLIC_IP>
+
+On Windows, use PuTTY or Windows Terminal with the same command.
+
+Step 3 — Install Node.js
+bash# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install Node.js 20 LTS via NodeSource
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Verify
+node -v   # should show v20.x.x
+npm -v
+
+Step 4 — Upload and Run the Backend
+bash# From your LOCAL machine — upload the backend folder
+scp -i ~/Downloads/shipstation-key.pem -r shipstation-backend/ ubuntu@<YOUR_PUBLIC_IP>:~/
+
+# Back on the server — install dependencies
+cd ~/shipstation-backend
+npm install
+
+# Create your .env with credentials
+cp .env.example .env
+nano .env
+# → Fill in SS_API_KEY and SS_API_SECRET, then Ctrl+O, Enter, Ctrl+X to save
+
+Step 5 — Run With PM2 (Keeps It Alive)
+bash# Install PM2 globally
+sudo npm install -g pm2
+
+# Start the server
+pm2 start server.js --name shipstation-backend
+
+# Auto-restart on reboot
+pm2 save
+pm2 startup    # copy & run the command it prints
+
+# Check it's running
+pm2 status
+pm2 logs shipstation-backend
+
+Step 6 — Verify It's Working
+bash# From your local machine:
+curl http://<YOUR_PUBLIC_IP>:3000/health
+You should get back:
+json{ "status": "ok", "shipmentsStored": 0, "uptime": 12.3 }
