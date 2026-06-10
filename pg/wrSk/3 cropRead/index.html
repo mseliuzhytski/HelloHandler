@@ -49,6 +49,7 @@
     <div class="prnt-o-1-temp selected-0" id="prnt-o-1-gaid">Ground Adventage</div>
     <div class="prnt-o-1-temp selected-0" id="prnt-o-1-tktkupsid">TikTok UPS</div>
     <div class="prnt-o-1-temp selected-0" id="prnt-o-1-tktkuspsid">TikTok USPS</div>
+    <div class="prnt-o-1-temp selected-0" id="prnt-o-1-tktkusps4wid">TikTok USPS 4W</div>
   </div></div>
   <div class="prnt-o-2-tm hidden"><div class="prnt-o-2-m">
     <div>Type sku:</div>
@@ -153,8 +154,11 @@
   </div>
 
   <br>
-  <div style="display: flex;">
+  <div style="display: flex; align-items: center;">
     <button onclick="csvMatchBtn()">MATCH</button>
+    <div style="margin-left:100px;"></div>
+    <input type="checkbox" id="dwnld-wout-print-chkid">
+    <label>w/out print</label>
     <div style="margin-left:100px;"></div>
     <button onclick="csvDwnldBtn()">DOWNLOAD</button>
   </div>

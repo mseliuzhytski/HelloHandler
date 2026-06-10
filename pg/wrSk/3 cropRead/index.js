@@ -4,7 +4,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = "pdfjs/pdf.worker.min.js";
 
 const logger = document.querySelector('.logger');
 
-//let pdfReady;   
+//let pdfReady;  
 let condFileOpen = false;
 //let condPdfReady = false;
 let condSkuFileOpen = false;
@@ -644,7 +644,10 @@ async function readLabels(pdfArg, rBtn) {
 
     if (!rBtn) {
         //console.log(matchTrackingFromPagesArr);
-        csvMatch();
+        const woutprintCond = document.getElementById("dwnld-wout-print-chkid");
+        if(woutprintCond.checked){
+            sortOnlyMatching();
+        } else { csvMatch(); }
     }
 }
 
@@ -914,8 +917,9 @@ function startLoadingAni(cond){
 }
 
 async function csvMatchBtn() {
-    if (!condSkuFileOpen) return;
+    const woutprintCond = document.getElementById("dwnld-wout-print-chkid");
     if (!condFileOpen) return;
+    if (!condSkuFileOpen && !woutprintCond.checked) return;
 
     startLoadingAni(true);
     // Let UI update BEFORE blocking work starts
@@ -929,7 +933,28 @@ async function csvMatchBtn() {
    await cropPDF(false);
 }
 
+function sortOnlyMatching(){
+    const cout = document.getElementById("logger-mtch-errid");
+    let lni = 1;
+    cout.innerHTML = '';
+    
+    let pnum = 1;
+
+    if(matchTrackingFromPagesArr.length < 1){ cout.innerHTML += lered + lni + ': ' + 'No read data' + ediv; lni++; }
+
+    matchSkuFromPagesArr.length = 0;
+
+    matchTrackingFromPagesArr.forEach(v => {
+        cout.innerHTML += legreen + lni + ': pg.' + pnum + ' read: '+ v + ediv; lni++;
+        pnum++;
+        matchSkuFromPagesArr.push(v);
+    });
+    startLoadingAni(false);
+}
+
 function csvMatch() {
+
+    if(!condSkuFileOpen) { return; }
 
     const cout = document.getElementById("logger-mtch-errid");
     const chkQ = document.getElementById("ds-hdrs-sl-qckid");
@@ -939,7 +964,7 @@ function csvMatch() {
     cout.innerHTML = '';
 
     matchSkuFromPagesArr.length = matchNumPages;
-    matchSkuFromPagesArr.forEach(x => x = 'NA');
+    matchSkuFromPagesArr.forEach(x => x = 'N/A');
 
     let tpnum = 1;
     //console.log('data:',datacsv);
@@ -1048,7 +1073,7 @@ function csvMatch() {
             cout.innerHTML += lered + lni + ': ' + 'NO MATCH FOUND'+ ' pg: '+ tpnum  + ' Rdt: ' + infread + ediv; lni++;
             //cout.innerHTML += legreen + lni+': '+'- - - - -' + ediv;lni++;
         } else {
-            matchSkuFromPagesArr[tpnum] = +infquant + 'x ' + infsku;
+            matchSkuFromPagesArr[tpnum-1] = +infquant + 'x ' + infsku;
             if(infquant > 1){
                 cout.innerHTML += leorange + lni + ': ' + 'WRITE SKU' + ' pg: '+ tpnum + ' || '+infquant + 'x ' + infsku+ ediv; lni++;
             }
@@ -1081,26 +1106,35 @@ async function csvDwnldBtn(){
     const pages = pdfDoc.getPages();
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    pages.forEach((page, index) => {
-        const { width, height } = page.getSize();
+    // --- Build a sortable array of { pageIndex, sku } ---
+    const pageSkuMap = pages.map((page, index) => ({
+        pageIndex: index,
+        sku: matchSkuFromPagesArr[index] || 'N/A'
+    }));
 
-        // Example: get value from your array
-        const text = matchSkuFromPagesArr[index+1] || "N/A";
+    const woutprintCond = document.getElementById("dwnld-wout-print-chkid");
+    if(!woutprintCond.checked){
+
+    // Write SKU text on each page first
+    pageSkuMap.forEach(({ pageIndex, sku }) => {
+        const page = pages[pageIndex];
+        const { width, height } = page.getSize();
+        const text = sku;
 
         let xc = parseFloat(contentA.style.marginLeft);
         let yc = (parseFloat(contentA.style.marginTop) + 16);
         let fontsize = 12;
 
-        if(text.length > 22){fontsize = 6;}
-        if(text.length > 20){fontsize = 8;}
-        if(text.length > 18){fontsize = 10;}
+        if(text.length > 22){ fontsize = 6; }
+        if(text.length > 20){ fontsize = 8; }
+        if(text.length > 18){ fontsize = 10; }
 
         if(condScale2){
             xc /= 2;
             yc /= 2;
         }
 
-        page.drawText(text, {   
+        page.drawText(text, {
             x: xc,
             y: height - yc,
             size: fontsize,
@@ -1109,8 +1143,39 @@ async function csvDwnldBtn(){
         });
     });
 
+    }       ///     sort only conditional IF 
+
+    // --- Sort pages by SKU ---
+    // "N/A" pages are pushed to the end; numeric SKUs sorted numerically,
+    // mixed/alpha SKUs sorted alphabetically after numerics
+    pageSkuMap.sort((a, b) => {
+        if(a.sku === 'N/A') return 1;
+        if(b.sku === 'N/A') return -1;
+
+        /*
+        const numA = parseFloat(a.sku);
+        const numB = parseFloat(b.sku);
+        const aIsNum = !isNaN(numA);
+        const bIsNum = !isNaN(numB);
+
+        if(aIsNum && bIsNum) return numA - numB;   // both numeric
+        if(aIsNum) return -1;                       // numeric before alpha
+        if(bIsNum) return 1;
+        */
+        return a.sku.localeCompare(b.sku);          // both alpha
+    });
+    //console.log(pageSkuMap);
+
+    // --- Rebuild PDF with sorted page order ---
+    const sortedDoc = await PDFDocument.create();
+
+    for (const entry of pageSkuMap) {
+        const [copiedPage] = await sortedDoc.copyPages(pdfDoc, [entry.pageIndex]);
+        sortedDoc.addPage(copiedPage);
+    }
+
     // Save modified PDF
-    const pdfBytes = await pdfDoc.save();
+    const pdfBytes = await sortedDoc.save();
 
     // Trigger download
     const blob = new Blob([pdfBytes], { type: "application/pdf" });
@@ -1329,6 +1394,22 @@ document.getElementById("prnt-o-1-tktkuspsid").addEventListener('click', (e) => 
     contentA.style.marginTop = '614.5px';
 
     templatelabel = 'USPS-TKTK';
+
+    accrl = 22;
+    csvAccuarcyInput(22);
+});
+
+document.getElementById("prnt-o-1-tktkusps4wid").addEventListener('click', (e) => {
+    if (!condFileOpen) return;
+    content.style.width = '457px';
+    content.style.height = '26px';
+    content.style.marginTop = '677.5px';
+    content.style.marginLeft = '46px';
+
+    contentA.style.marginLeft = '68px';
+    contentA.style.marginTop = '787px';
+
+    templatelabel = 'USPS_4W-TKTK';
 
     accrl = 22;
     csvAccuarcyInput(22);
