@@ -1,0 +1,63 @@
+async function csvDwnldBtn(){
+
+    if(!condFileOpen || matchSkuFromPagesArr.length < 1){
+        console.log('no skus to print'); 
+        return;
+    }
+
+    const fileInput = document.getElementById("fileInput");
+    if (!fileInput.files.length) return;
+
+    const file = fileInput.files[0];
+    const arrayBuffer = await file.arrayBuffer();
+
+    // Load PDF with pdf-lib
+    const { PDFDocument, rgb, StandardFonts } = PDFLib;
+    const pdfDoc = await PDFDocument.load(arrayBuffer);
+
+    const pages = pdfDoc.getPages();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+    pages.forEach((page, index) => {
+        const { width, height } = page.getSize();
+
+        // Example: get value from your array
+        const text = matchSkuFromPagesArr[index] || "N/A";
+
+        let xc = parseFloat(contentA.style.marginLeft);
+        let yc = (parseFloat(contentA.style.marginTop) + 16);
+        let fontsize = 12;
+
+        if(text.length > 22){fontsize = 6;}
+        if(text.length > 20){fontsize = 8;}
+        if(text.length > 18){fontsize = 10;}
+
+        if(condScale2){
+            xc /= 2;
+            yc /= 2;
+        }
+
+        page.drawText(text, {   
+            x: xc,
+            y: height - yc,
+            size: fontsize,
+            font: font,
+            color: rgb(0, 0, 0),
+        });
+    });
+
+    // Save modified PDF
+    const pdfBytes = await pdfDoc.save();
+
+    // Trigger download
+    const blob = new Blob([pdfBytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "modified.pdf";
+    a.click();
+
+    URL.revokeObjectURL(url);
+
+}

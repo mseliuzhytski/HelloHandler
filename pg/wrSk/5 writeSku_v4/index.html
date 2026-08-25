@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>CSV Processor</title>
+  <style>
+    body {
+      font-family: Arial;
+      padding: 20px;
+    }
+
+    button {
+      margin: 5px;
+      padding: 8px;
+    }
+
+    footer{
+      margin: 100px 0px;
+    }
+
+    #log {
+      margin-top: 20px;
+    }
+  </style>
+  <link rel="stylesheet" href="index.css">
+  <link rel="stylesheet" href="libs/theme.css">
+  <script src="pdfjs/pdf-lib.min.js" defer></script>
+  <script src="pdfjs/pdf.min.js" defer></script>
+  <script src="tesseract/tesseract.min.js" defer></script>
+  <script src="libs/papaparse.min.js"></script>
+  <script src="index.js" defer></script>
+</head>
+
+<body>
+
+  <h2>HH</h2>
+  <h4>Hello Handler</h2>
+
+  <input type="file" id="fileInput" accept=".pdf"><br>
+  <br>
+
+  <div class="prnt-o-1 selected-1">1. Print sku's from file</div>
+  <div class="prnt-o-2 selected-0 invisible">2. Print same sku</div>
+
+  <div class="prnt-o-1-tm visible">
+  <div>
+    <div class="prnt-o-1-custom-row">
+      <div>Templates:</div>
+      Custom:
+      <input type="text" id="prnt-o-1-custom-name" placeholder="Template name">
+      Accuracy:
+      <input type="number" id="prnt-o-1-custom-accuracy" placeholder="10" style="width: 60px;">
+      <button id="prnt-o-1-custom-save">Save</button>
+    </div>
+
+  </div>
+  <div style="display: flex; gap: 8px; padding: 0px 16px 2px 16px;" id="prnt-o-1-temp-list"></div>
+</div>
+
+  <div class="pg-trvrs">
+    <div>Pages:</div>
+    <div id="pg-trvrs-pgsid"></div>
+    <div>Current:</div>
+    <div id="pg-trvrs-curid"></div>
+    <div class="pg-trvrs-prev selected-0">&lt; BACK</div>
+    <div>||</div>
+    <div class="pg-trvrs-next selected-0">NEXT &gt;</div>
+    <div>Switch to:</div>
+    <input type="number" id="pg-trvrs-iid">
+    <div class="pg-trvrs-swtch selected-0">Switch</div>
+    <div>Skip:</div>
+    <input type="text" id="pg-trvrs-skip" style="width: 150px;">
+  </div>
+
+  <div style="display: flex;">
+  <div class="l-p-sb-sbh">
+
+    <div class="l-p-sb">
+      <div class="scroll-bar-Ah">
+          <div class="scroll-thumb-Ah"></div>
+      </div>
+      <div class="scroll-bar-Al">
+          <div class="scroll-thumb-Al"></div>
+      </div>
+      <div class="l-c-c">
+        <canvas id="pdfPreview" class="l-c"></canvas>
+        <canvas id="overlay" class="cs"></canvas>
+        <div class="cs-1 display" id="cs-1id"></div>
+        <div class="cs-2" id="cs-2id"></div>
+      </div>
+      <div class="scroll-bar display">
+          <div class="scroll-thumb"></div>
+      </div>
+      <div class="scroll-bar-x display">
+          <div class="scroll-thumb-x"></div>
+      </div>
+    </div>
+    <div class="scroll-bar-h display">
+        <div class="scroll-thumb-h"></div>
+    </div>
+    <div class="scroll-bar-h-w display">
+        <div class="scroll-thumb-h-w"></div>
+    </div>
+
+  </div>
+  </div>
+  <br><br>
+
+  <button onclick="processName()">READ</button>
+
+  <div class="logger-c">
+    <div class="logger"></div>
+  </div>
+  
+  <br>
+
+  <div class="mtch-sk-c">
+    <div>Choose file with Skus' and Tracking</div>
+    <input type="file" id="cfileInput" accept=".csv"><br>
+    <div class="mtch-sk-ds-hdrs-c">
+      <div class="mtch-sk-ds-hdrs-sl-c">
+        <div class="ds-hdrs-sl-b selected-0" id="ds-hdrs-sl-skid">show</div>
+        <div class="ds-hdrs-sl-tx">Skus' Column: </div>
+        <div class="ds-hdrs-sl-optn" id="ds-hdrs-sl-optn-skid"></div>
+        <div class="ds-hdrs-sl-tx-ex" id="ds-hdrs-sl-exskid"></div>
+      </div>
+      <div class="hidden" id="ds-hdrs-a-skid"></div>
+    </div>
+    <div class="mtch-sk-ds-hdrs-c">
+      <div class="mtch-sk-ds-hdrs-sl-c mtch-sk-ds-hdrs-sl-cq" id="mtch-sk-ds-hdrs-sl-cqid">
+        <div><input type="checkbox" id="ds-hdrs-sl-qckid"></div>
+        <div class="ds-hdrs-sl-b ds-hdrs-sl-bq" id="ds-hdrs-sl-qid">show</div>
+        <div class="ds-hdrs-sl-tx">Quantity Column: </div>
+        <div class="ds-hdrs-sl-optn" id="ds-hdrs-sl-optn-qid"></div>
+        <div class="ds-hdrs-sl-tx-ex" id="ds-hdrs-sl-exqid"></div>
+      </div>
+      <div class="hidden" id="ds-hdrs-a-qid"></div>
+    </div>
+    <div class="mtch-sk-ds-hdrs-c">
+      <div class="mtch-sk-ds-hdrs-sl-c">
+        <div class="ds-hdrs-sl-b selected-0" id="ds-hdrs-sl-trknid">show</div>
+        <div class="ds-hdrs-sl-tx">Tracking Column:</div>
+        <div class="ds-hdrs-sl-optn" id="ds-hdrs-sl-optn-trknid"></div>
+        <div class="ds-hdrs-sl-tx-ex" id="ds-hdrs-sl-extrknid"></div>
+      </div>
+      <div class="hidden" id="ds-hdrs-a-trknid"></div>
+    </div>
+  </div>
+
+  <div class="mtch-accr-c">
+    <div>Accuracy:</div>
+    <div><input type="number" id="mtch-accr-iid"/></div>
+    <div class="mtch-accr-btn selected-0" id="mtch-accr-btnid">%100</div>
+    <div class="visible-f rnd-5f" id="mtch-accr-dsid"></div>
+    <div>length:</div>
+    <div id="mtch-accr-dslngthid"></div>
+  </div>
+
+  <br>
+  <div style="display: flex; align-items: center;">
+    <button onclick="csvMatchBtn()">MATCH</button>
+    <div style="margin-left:100px;"></div>
+    <input type="checkbox" id="dwnld-wout-print-chkid">
+    <label>w/out print</label>
+    <div style="margin-left:100px;"></div>
+    <button onclick="csvDwnldBtn()">DOWNLOAD</button>
+  </div>
+  <br><br>
+  <div class="loader hidden" id="loadinganiid"></div> 
+
+  <div class="logger-mtch-err-c">
+    <div class="logger-mtch-err" id="logger-mtch-errid"></div>
+  </div>
+
+  <footer></footer>
+
+  <script>
+
+    async function loadTemplates() {
+      try {
+      const res = await fetch('Templ_Buttons.csv');
+      if (!res.ok) throw new Error('CSV fetch failed: ' + res.status);
+      templates = tempLparseCSV(await res.text());
+      } catch (err) {
+      console.error('Could not load Templ_Buttons.csv — make sure index.html is served over http(s), not opened as a file:// URL.', err);
+      templates = [];
+      }
+      tempLrenderTemplates();
+    }
+
+    loadTemplates();
+
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,24 @@
+
+PDF min:
+
+⚠️ Important notes
+1. Opening the file
+You can try double-clicking index.html, but if worker fails:
+👉 Run a local server:
+
+python3 -m http.server
+
+Then open:
+
+http://localhost:8000
+
+Requires:
+Development tools software installed
+
+
+Bash commands:
+
+Ctr+Space > Terminal
+
+Fix:
+Access to fetch at 'file:///Users/markseliuzhytski/Documents/HH/wrtSk/ocrReadPdf/eng.traineddata.gz' from origin 'null' has been blocked by CORS policy: Cross origin requests are only supported for protocol schemes: chrome, chrome-extension, chrome-untrusted, data, http, https, isolated-app.

@@ -1,0 +1,6 @@
+Id,Template Name,Width-Green,Height-Green,Top-Green,Left-Green,Top-Red,Left-Red,Accuracy
+prnt-o-1-cust-2,UPS@ GS,305px,23px,353px,128px,635.5px,293px,8
+prnt-o-1-cust-3,UPS@ GS Top,305px,23px,353px,128px,56.8209px,293px,8
+prnt-o-1-cust-4,USPS@,492.975px,32.6521px,692.295px,27.1455px,799.701px,94.1045px,10
+prnt-o-1-cust-5,USPS@ Read,463.71px,49.9719px,782.77px,10.8582px,831.269px,94.1045px,10
+prnt-o-1-cust-6,TkTk UPS@,268.744px,21.2384px,419.008px,105.718px,619.662px,86.6205px,10
