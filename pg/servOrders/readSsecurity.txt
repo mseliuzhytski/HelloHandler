@@ -1,0 +1,107 @@
+Step 1 — Find Your IPs
+Your office/warehouse public IP:
+
+
+bash
+curl https://api.ipify.org
+Run this from your packing station computer (or any computer at your location). Save this IP.
+ShipStation's webhook IPs — they publish these. As of 2025:
+
+
+44.230.152.160
+44.229.19.25
+
+Step 2 — Update Nginx to enforce IP allowlist
+SSH into your AWS instance:
+
+
+bash
+sudo nano /etc/nginx/sites-available/shipstation
+Replace the contents with this (fill in your actual IP):
+
+
+nginx
+
+server {
+    listen 80;
+    server_name api.ancienthowl.net;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name api.ancienthowl.net;
+
+    ssl_certificate     /etc/letsencrypt/live/api.ancienthowl.net/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.ancienthowl.net/privkey.pem;
+    include             /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
+
+    # Block disallowed IPs at the Nginx level
+    if ($allowed_ip = 0) {
+        return 403;
+    }
+
+    location / {
+        proxy_pass         http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+Test and reload:
+
+
+bash
+sudo nginx -t
+sudo systemctl reload nginx
+
+Step 3 — Add API Key to server.js
+
+Add one line to your .env:
+bash
+nano ~/shipstation-backend/.env
+
+Add:
+API_KEY=your-long-random-secret-here
+Generate a strong key right now on the server:
+
+bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+Copy that output as your API_KEY value.
+
+Step 4 — Update server.js
+Upload this updated server.js:
+Viewed a file, ran a commandViewed a file, ran a command
+
+Now update the HTML page to send the API key with every request:
+Ran a command, read a fileRan a command, read a file
+
+Step 5 — Deploy and Test
+
+bash
+# Upload both files
+scp -i ~/Downloads/shipstation-key.pem shipstation-backend/server.js ubuntu@<YOUR_AWS_IP>:~/shipstation-backend/
+scp -i ~/Downloads/shipstation-key.pem packing-station.html ubuntu@<YOUR_AWS_IP>:~/
+
+# On the server — add API_KEY to .env
+nano ~/shipstation-backend/.env
+# Add: API_KEY=<the hex key you generated>
+
+# Restart Node
+pm2 restart shipstation-backend
+
+# Deploy HTML
+sudo cp ~/packing-station.html /var/www/html/packing-station.html
+Verify it's locked down:
+
+bash
+# Should return 401 Unauthorized
+curl https://api.ancienthowl.net/shipments
+
+# Should return data
+curl https://api.ancienthowl.net/shipments -H "x-api-key: YOUR_KEY"
+
+# Should return 403 from a different IP (test via VPN or phone hotspot)

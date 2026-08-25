@@ -1,0 +1,45 @@
+API key:
+05ee261138fb453b8ac4ca773c55f0dc
+API secret:
+1dab0652809247faa488b22779a27895
+
+060326-3mnth
+
+Khls
+56db64b2-392b-454b-ad2e-6fe9d9ba54d1
+
+
+AncientHowl API secret
+68a8326be02e54fb5717e1922c633a6ffa83e31661b819dc2e1907b37948cfa3
+
+TkTk RCW
+App key
+6ksc3iqmouotb
+App secret
+68701fc8cf910e88199fc1f09279eae86a560117
+
+
+
+///	///	///
+
+curl https://api.ancienthowl.net/orders -H "x-api-key: $(cat ~/.xapi)"
+
+curl https://api.ancienthowl.net/ordersdailyopen -H "x-api-key: $(cat ~/.xapi)"
+
+1Z16D13WYW03702055
+
+///	///	///
+
+pm2 logs shipstation-backend --lines 500 --out
+
+Find ip
+curl https://api.ipify.org
+
+Public ip:
+13.58.234.210
+
+Mark Mac
+97.89.16.32
+
+Chrome warehouse
+192.168.0.235

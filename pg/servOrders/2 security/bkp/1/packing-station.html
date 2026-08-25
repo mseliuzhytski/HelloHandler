@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Packing Station — ShipStation</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.10.0/tabler-icons.min.css" />
+<style>
+  /* ── Reset & Base ─────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --accent:       #0099ff;
+    --accent-light: rgba(0,153,255,0.12);
+    --accent-mid:   rgba(0,153,255,0.22);
+    --bg:           #f0f4f8;
+    --surface:      rgba(255,255,255,0.88);
+    --surface-2:    rgba(255,255,255,0.6);
+    --border:       rgba(0,0,0,0.10);
+    --border-light: rgba(0,0,0,0.06);
+    --text-1:       #1d1d1f;
+    --text-2:       #6e6e73;
+    --text-3:       #b0b0b8;
+    --green:        #28c840;
+    --red:          #ff3b30;
+    --radius-sm:    8px;
+    --radius-md:    12px;
+    --radius-lg:    16px;
+    --blur:         blur(20px) saturate(1.4);
+  }
+
+  html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text-1);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Titlebar ─────────────────────────────────────────────── */
+  .titlebar {
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    background: rgba(255,255,255,0.82);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    border-bottom: 0.5px solid var(--border);
+    user-select: none;
+  }
+  .tb-dots { display: flex; gap: 8px; align-items: center; }
+  .dot {
+    width: 12px; height: 12px; border-radius: 50%; cursor: default;
+    transition: filter 0.15s;
+  }
+  .dot:hover { filter: brightness(0.85); }
+  .dot-r { background: #ff5f57; }
+  .dot-y { background: #febc2e; }
+  .dot-g { background: #28c840; }
+  .tb-title {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    font-size: 13px; font-weight: 500; color: var(--text-1);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tb-title i { font-size: 14px; color: var(--accent); }
+  .tb-badge {
+    font-size: 11px; font-weight: 500; color: var(--accent);
+    background: var(--accent-light);
+    padding: 3px 10px; border-radius: 20px;
+    border: 0.5px solid rgba(0,153,255,0.2);
+  }
+
+  /* ── Layout ───────────────────────────────────────────────── */
+  .main {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 24px 20px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  /* ── Card ─────────────────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+  }
+  .section-label {
+    font-size: 11px; font-weight: 600; color: var(--text-2);
+    letter-spacing: 0.07em; text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .section-label i { font-size: 13px; color: var(--accent); }
+
+  /* ── Scan Inputs ──────────────────────────────────────────── */
+  .scan-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field-label {
+    font-size: 12px; font-weight: 500; color: var(--text-2);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .field-label i { font-size: 14px; color: var(--accent); }
+  .scan-input {
+    height: 42px;
+    border: 1.5px solid #dde0e8;
+    border-radius: var(--radius-md);
+    padding: 0 14px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text-1);
+    background: rgba(255,255,255,0.9);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .scan-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,153,255,0.15);
+  }
+  .scan-input::placeholder { color: var(--text-3); }
+
+  /* ── Result Area ──────────────────────────────────────────── */
+  .result-box {
+    margin-top: 14px;
+    background: rgba(0,153,255,0.03);
+    border: 1.5px solid rgba(0,153,255,0.18);
+    border-radius: var(--radius-md);
+    min-height: 88px;
+    padding: 14px 16px;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .result-box.state-match {
+    background: rgba(40,200,64,0.05);
+    border-color: rgba(40,200,64,0.35);
+  }
+  .result-box.state-error {
+    background: rgba(255,59,48,0.05);
+    border-color: rgba(255,59,48,0.3);
+  }
+  .result-empty {
+    display: flex; align-items: center; gap: 8px;
+    color: var(--text-3); font-size: 13px; height: 60px;
+  }
+  .result-empty i { font-size: 20px; color: var(--accent); opacity: 0.35; }
+
+  .result-meta {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px; padding-bottom: 8px;
+    border-bottom: 0.5px solid var(--border-light);
+  }
+  .order-num { font-size: 12px; color: var(--text-2); }
+  .order-num strong { color: var(--accent); font-weight: 500; }
+  .tracking-pill {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 11px; color: var(--text-2);
+    background: rgba(0,0,0,0.05);
+    padding: 3px 8px; border-radius: 6px;
+    max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .item-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 0.5px solid var(--border-light);
+  }
+  .item-row:last-child { border-bottom: none; }
+  .item-row.highlighted { background: rgba(40,200,64,0.07); border-radius: 6px; padding: 8px 8px; margin: 0 -8px; }
+  .item-info { display: flex; flex-direction: column; gap: 2px; }
+  .item-sku {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 13px; font-weight: 500; color: var(--text-1);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .item-name { font-size: 11px; color: var(--text-2); }
+  .qty-badge {
+    background: var(--accent); color: #fff;
+    font-size: 12px; font-weight: 600;
+    padding: 3px 10px; border-radius: 20px;
+    min-width: 34px; text-align: center;
+  }
+
+  .match-chip {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+    background: rgba(40,200,64,0.14); color: #1a7a3d;
+    padding: 2px 7px; border-radius: 10px;
+  }
+  .error-chip {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 10px; font-weight: 600;
+    background: rgba(255,59,48,0.12); color: #c0392b;
+    padding: 2px 7px; border-radius: 10px;
+  }
+
+  .mismatch-body { font-size: 13px; color: var(--text-1); line-height: 1.8; }
+  .mismatch-body .scanned-val { font-family: 'SF Mono','Menlo',monospace; font-weight: 500; }
+  .mismatch-body .expected-list { font-size: 12px; color: var(--text-2); margin-top: 4px; }
+  .mismatch-body .expected-list span {
+    font-family: 'SF Mono','Menlo',monospace;
+    background: rgba(0,0,0,0.05); padding: 1px 6px; border-radius: 4px; margin-right: 4px;
+  }
+
+  /* ── Table Card ───────────────────────────────────────────── */
+  .table-topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .refresh-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500; color: var(--accent);
+    background: var(--accent-light);
+    border: 0.5px solid rgba(0,153,255,0.25);
+    border-radius: var(--radius-sm);
+    padding: 6px 12px; cursor: pointer; font-family: inherit;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .refresh-btn:hover { background: var(--accent-mid); }
+  .refresh-btn:active { transform: scale(0.97); }
+  .refresh-btn i { font-size: 14px; }
+
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 13px; table-layout: fixed;
+  }
+  thead th {
+    font-size: 11px; font-weight: 600; color: var(--text-2);
+    letter-spacing: 0.06em; text-transform: uppercase;
+    text-align: left; padding: 0 10px 10px;
+    border-bottom: 0.5px solid var(--border);
+  }
+  tbody td {
+    padding: 10px; border-bottom: 0.5px solid var(--border-light);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--text-1);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--accent-light); }
+  .td-order { color: var(--accent); font-weight: 500; }
+  .td-mono { font-family: 'SF Mono','Menlo',monospace; font-size: 11px; color: var(--text-2); }
+  .td-qty {
+    display: inline-block; background: var(--accent-light); color: #0070d1;
+    font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 12px;
+  }
+
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 8px; padding: 36px; color: var(--text-3);
+    font-size: 13px; text-align: center;
+  }
+  .empty-state i { font-size: 30px; color: var(--accent); opacity: 0.25; }
+
+  /* ── Footer note ──────────────────────────────────────────── */
+  .config-note {
+    font-size: 11px; color: var(--text-3);
+    margin-top: 8px; font-style: italic;
+  }
+  .config-note code {
+    font-family: 'SF Mono','Menlo',monospace;
+    background: rgba(0,0,0,0.05); padding: 1px 5px; border-radius: 4px;
+  }
+
+  /* ── Spinner ──────────────────────────────────────────────── */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinning { animation: spin 0.8s linear infinite; display: inline-block; }
+</style>
+</head>
+<body>
+
+<!-- ── Title bar ───────────────────────────────────────────── -->
+<div class="titlebar">
+  <div class="tb-dots">
+    <div class="dot dot-r"></div>
+    <div class="dot dot-y"></div>
+    <div class="dot dot-g"></div>
+  </div>
+  <div class="tb-title">
+    <i class="ti ti-package" aria-hidden="true"></i>
+    Packing Station
+  </div>
+  <div class="tb-badge">ShipStation</div>
+</div>
+
+<!-- ── Main ────────────────────────────────────────────────── -->
+<div class="main">
+
+  <!-- Scan card -->
+  <div class="card">
+    <div class="section-label">
+      <i class="ti ti-scan" aria-hidden="true"></i>
+      Scan order
+    </div>
+
+    <div class="scan-row">
+      <div class="field">
+        <label class="field-label" for="inp-tracking">
+          <i class="ti ti-truck-delivery" aria-hidden="true"></i>
+          Tracking number
+        </label>
+        <input id="inp-tracking" class="scan-input" type="text"
+               placeholder="Scan tracking barcode…" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label class="field-label" for="inp-sku">
+          <i class="ti ti-barcode" aria-hidden="true"></i>
+          SKU
+        </label>
+        <input id="inp-sku" class="scan-input" type="text"
+               placeholder="Scan product SKU…" autocomplete="off" />
+      </div>
+    </div>
+
+    <div id="result-box" class="result-box">
+      <div class="result-empty">
+        <i class="ti ti-scan" aria-hidden="true"></i>
+        Scan a tracking barcode to see order items
+      </div>
+    </div>
+
+    <p class="config-note">
+      API: <code id="api-display"></code>
+      &nbsp;—&nbsp;edit <code>API_BASE</code> at the top of this file to change.
+    </p>
+  </div>
+
+  <!-- Shipped orders table card -->
+  <div class="card">
+    <div class="table-topbar">
+      <div class="section-label" style="margin-bottom:0">
+        <i class="ti ti-list-check" aria-hidden="true"></i>
+        Shipped orders
+      </div>
+      <button class="refresh-btn" id="refresh-btn" onclick="loadShipments()">
+        <i class="ti ti-refresh" id="refresh-icon" aria-hidden="true"></i>
+        Refresh
+      </button>
+    </div>
+    <div id="table-wrap">
+      <div class="empty-state">
+        <i class="ti ti-inbox" aria-hidden="true"></i>
+        No shipments yet — print a label in ShipStation or click Refresh
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── CONFIG ────────────────────────────────────────────────────
+// Change this to your actual backend URL
+const API_BASE = 'https://api.ancienthowl.net';
+// ───────────────────────────────────────────────────────────────
+
+document.getElementById('api-display').textContent = API_BASE;
+
+let currentItems   = [];
+let currentOrder   = '';
+let scannedTracking = null;
+
+const trackingInput = document.getElementById('inp-tracking');
+const skuInput      = document.getElementById('inp-sku');
+const resultBox     = document.getElementById('result-box');
+
+// ── Helpers ─────────────────────────────────────────────────────
+function setResultState(state) {   // 'default' | 'match' | 'error'
+  resultBox.className = 'result-box';
+  if (state === 'match') resultBox.classList.add('state-match');
+  if (state === 'error') resultBox.classList.add('state-error');
+}
+
+function renderEmpty(msg) {
+  setResultState('default');
+  resultBox.innerHTML = `
+    <div class="result-empty">
+      <i class="ti ti-scan" aria-hidden="true"></i>
+      ${msg}
+    </div>`;
+}
+
+function renderItems(order, tracking, items, highlightSku) {
+  currentItems    = items;
+  currentOrder    = order;
+  scannedTracking = tracking;
+
+  const rows = items.map(item => {
+    const isHit = highlightSku && item.sku === highlightSku;
+    const chip  = isHit
+      ? `<span class="match-chip"><i class="ti ti-check" aria-hidden="true"></i> Match</span>`
+      : '';
+    return `<div class="item-row ${isHit ? 'highlighted' : ''}">
+      <div class="item-info">
+        <div class="item-sku">${escHtml(item.sku)} ${chip}</div>
+        <div class="item-name">${escHtml(item.name || '')}</div>
+      </div>
+      <div class="qty-badge">${item.quantity}&times;</div>
+    </div>`;
+  }).join('');
+
+  resultBox.innerHTML = `
+    <div class="result-meta">
+      <div class="order-num">Order <strong>${escHtml(order)}</strong></div>
+      <div class="tracking-pill" title="${escHtml(tracking)}">${escHtml(tracking)}</div>
+    </div>
+    ${rows}`;
+}
+
+function renderMismatch(scannedSku, items) {
+  setResultState('error');
+  const expectedHtml = items.map(i => `<span>${escHtml(i.sku)}</span>`).join(' ');
+  resultBox.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span class="error-chip"><i class="ti ti-alert-triangle" aria-hidden="true"></i> SKU mismatch</span>
+    </div>
+    <div class="mismatch-body">
+      Scanned: <span class="scanned-val">${escHtml(scannedSku)}</span>
+      <div class="expected-list">Expected: ${expectedHtml}</div>
+    </div>`;
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+// ── Tracking scan ────────────────────────────────────────────────
+trackingInput.addEventListener('change', async () => {
+  const tracking = trackingInput.value.trim();
+  if (!tracking) return;
+  renderEmpty('Looking up tracking number…');
+  try {
+    const res = await fetch(`${API_BASE}/shipment/${encodeURIComponent(tracking)}`);
+    if (res.status === 404) {
+      renderEmpty('Tracking number not found — make sure the label was printed in ShipStation');
+      return;
+    }
+    if (!res.ok) throw new Error('Server error');
+    const data = await res.json();
+    setResultState('default');
+    renderItems(data.orderNumber, data.trackingNumber, data.items, skuInput.value.trim() || null);
+    skuInput.focus();
+    skuInput.select();
+  } catch (e) {
+    renderEmpty('Cannot reach backend — check that your AWS server is running');
+  }
+});
+
+// ── SKU scan ─────────────────────────────────────────────────────
+skuInput.addEventListener('change', () => {
+  const sku = skuInput.value.trim();
+  if (!sku) return;
+  if (!scannedTracking || currentItems.length === 0) {
+    renderEmpty('Scan a tracking barcode first');
+    return;
+  }
+  const match = currentItems.find(i => i.sku === sku);
+  if (match) {
+    setResultState('match');
+    renderItems(currentOrder, scannedTracking, currentItems, sku);
+  } else {
+    renderMismatch(sku, currentItems);
+  }
+});
+
+// ── Shipments table ──────────────────────────────────────────────
+async function loadShipments() {
+  const btn  = document.getElementById('refresh-btn');
+  const icon = document.getElementById('refresh-icon');
+  icon.classList.add('spinning');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/shipments`);
+    if (!res.ok) throw new Error();
+    const rows = await res.json();
+    renderTable(rows);
+  } catch (e) {
+    document.getElementById('table-wrap').innerHTML = `
+      <div class="empty-state">
+        <i class="ti ti-wifi-off" aria-hidden="true"></i>
+        Could not reach backend
+      </div>`;
+  }
+
+  icon.classList.remove('spinning');
+  btn.disabled = false;
+}
+
+function renderTable(rows) {
+  const wrap = document.getElementById('table-wrap');
+  if (!rows.length) {
+    wrap.innerHTML = `
+      <div class="empty-state">
+        <i class="ti ti-inbox" aria-hidden="true"></i>
+        No shipments yet
+      </div>`;
+    return;
+  }
+  const trs = rows.map(r => `<tr>
+    <td class="td-order">${escHtml(r.orderNumber)}</td>
+    <td class="td-mono" title="${escHtml(r.trackingNumber)}">${escHtml(r.trackingNumber)}</td>
+    <td><span class="td-qty">${r.quantity}&times;</span></td>
+    <td class="td-mono" title="${escHtml(r.sku)}">${escHtml(r.sku)}</td>
+  </tr>`).join('');
+
+  wrap.innerHTML = `
+    <table aria-label="Shipped orders">
+      <thead>
+        <tr>
+          <th style="width:22%">Order</th>
+          <th style="width:37%">Tracking</th>
+          <th style="width:10%">Qty</th>
+          <th style="width:31%">SKU</th>
+        </tr>
+      </thead>
+      <tbody>${trs}</tbody>
+    </table>`;
+}
+
+// Auto-load on open
+loadShipments();
+</script>
+</body>
+</html>

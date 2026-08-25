@@ -35,7 +35,8 @@ Save — Let's Encrypt needs port 80 to verify your domain.
 
 
 Step 4 — Configure Nginx as a Reverse Proxy
-bashsudo nano /etc/nginx/sites-available/shipstation
+bash
+sudo nano /etc/nginx/sites-available/shipstation
 Paste this (replace api.yourdomain.com with your actual domain/subdomain):
 nginxserver {
     listen 80;

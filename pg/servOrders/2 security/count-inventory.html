@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory Cycle Count</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* ============================================================
+     Page-specific layout additions.
+     theme.css supplies colors, buttons, checkboxes, pills, etc.
+     This block only adds the structural / table pieces that
+     theme.css doesn't define (flex layout, table grid, cell fills).
+     ============================================================ */
+
+  .flex-this {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 10px 28px;
+  }
+
+  .data-input {
+    padding: 6px 10px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    min-width: 120px;
+  }
+  .data-input:focus {
+    border-color: var(--blue);
+    box-shadow: var(--shadow-blue);
+    outline: none;
+    background: var(--surface);
+  }
+
+  .visual-separator {
+    display: block;
+    width: 1px;
+    align-self: stretch;
+    background: var(--border);
+    margin: 0 8px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    padding: 14px 16px;
+    margin: 0 0 0 0;
+  }
+
+  .panel-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+  }
+
+  .sectionA {
+    margin: 10px 28px;
+    align-items: stretch;
+  }
+  .sectionA .flex-this {
+    margin: 0;
+    flex: 1;
+    align-items: flex-start;
+  }
+  .sectionA .panel { flex: 1; min-height: 60px; }
+
+  .sectionB, .sectionC {
+    margin: 0;
+  }
+
+  .sectionB {
+    width: 220px;
+    flex: 0 0 220px;
+  }
+  .sectionB .panel { min-height: 300px; }
+  .sectionB > div > div { display: flex; flex-direction: column; gap: 6px; }
+
+  .sectionC { flex: 1; min-width: 0; }
+  .sectionC .panel { padding: 14px 16px 18px; }
+
+  .pill {
+    padding: 6px 14px;
+    border-radius: 14px;
+    border: 1.5px solid var(--border);
+    background: var(--surface-2);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+  }
+  .pill:hover {
+    border-color: var(--blue);
+    color: var(--blue);
+    background: var(--blue-tint);
+  }
+  .pill.selected-1 {
+    background: var(--blue);
+    border-color: var(--blue-dark);
+    color: #fff;
+  }
+  .pill.empty {
+    cursor: default;
+    color: var(--text-3);
+    border-style: dashed;
+  }
+  .pill.empty:hover {
+    border-color: var(--border);
+    color: var(--text-3);
+    background: var(--surface-2);
+  }
+
+  /* ---- Table (Section C) ---- */
+  .table-wrap { display: flex; flex-direction: column; }
+
+  .table-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .table-row > * {
+    padding: 8px 10px;
+    box-sizing: border-box;
+    font-size: 13px;
+  }
+
+  .col-name       { flex: 1.2; font-weight: 500; }
+  .col-location   { flex: 1.6; }
+  .col-new        { flex: 0.9; }
+  .col-used       { flex: 0.9; }
+  .col-total      { flex: 0.9; text-align: center; }
+  .col-expected   { flex: 0.9; text-align: center; }
+  .col-diff       { flex: 0.9; text-align: center; }
+  .col-note       { flex: 1.4; }
+
+  .header-row {
+    background: #ffffff;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-3);
+    border-bottom: 1.5px solid var(--border);
+  }
+
+  .summary-row {
+    background: #e9edf2;
+    font-weight: 600;
+  }
+  .summary-row .col-note input {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font);
+    font-size: 12px;
+    background: var(--surface);
+  }
+
+  .item-row .col-location {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .item-row .col-location input[type="text"] {
+    width: 70px;
+    padding: 5px 6px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font);
+    font-size: 12px;
+    background: var(--surface-2);
+    text-align: center;
+  }
+  .item-row .col-location input[type="text"]:focus {
+    border-color: var(--blue);
+    box-shadow: var(--shadow-blue);
+    outline: none;
+    background: var(--surface);
+  }
+
+  .row-btn {
+    margin: 0;
+    padding: 3px 8px;
+    font-size: 11px;
+    border-radius: 5px;
+    line-height: 1;
+    box-shadow: none;
+  }
+  .row-btn.remove-row { background: #ff3b30; }
+  .row-btn.remove-row:hover { background: #ff5c52; }
+  .row-btn.add-row-below { background: #34c759; }
+  .row-btn.add-row-below:hover { background: #4fd471; }
+
+  .cell-new  { background: rgba(52, 199, 89, 0.16); }
+  .cell-used { background: rgba(255, 204, 0, 0.20); }
+  .cell-total{ background: rgba(0, 153, 255, 0.14); }
+
+  .item-row .col-new input,
+  .item-row .col-used input {
+    width: 70px;
+    padding: 5px 6px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font);
+    font-size: 12px;
+    background: var(--surface);
+    text-align: center;
+  }
+  .item-row .col-new input:focus,
+  .item-row .col-used input:focus {
+    border-color: var(--blue);
+    box-shadow: var(--shadow-blue);
+    outline: none;
+  }
+
+  .empty-state {
+    padding: 24px;
+    text-align: center;
+    color: var(--text-3);
+    font-size: 13px;
+  }
+
+  .ready-refresh-row { margin: 0 0 6px 0; justify-content: space-between; }
+  .ready-refresh-row button { margin: 0; }
+  .ready-label { font-size: 13px; font-weight: 500; color: var(--text-2); }
+
+  .diff-zero { color: var(--text-2); }
+  .diff-pos  { color: #ff3b30; font-weight: 600; }
+  .diff-neg  { color: #ff9500; font-weight: 600; }
+
+  #topActions { margin-top: 18px; }
+
+  @media (max-width: 900px) {
+    .sectionA, .flex-this[style*="row"] { flex-direction: column; }
+    .sectionB { flex: 1 1 auto; width: auto; }
+  }
+</style>
+</head>
+<body>
+
+<div style="display: flex; justify-content: space-between;">
+  <div>
+    <h2>HH</h2>
+    <h4>Hello Handler</h4>
+  </div>
+  <div>
+    <button id="session-inid" style="visibility: visible;">Login</button>
+    <button id="session-outid" style="visibility: hidden;">Logout</button>
+  </div>
+</div>
+
+<div class="flex-this" id="topActions">
+  <button id="getNewBtn">Get New</button>
+  <button id="completeBtn">Complete</button>
+</div>
+
+<div class="flex-this sectionA">
+  <div class="flex-this">
+    <div class="panel">
+      <div class="panel-title">All Locations</div>
+      <div id="allLocations" class="flex-this" style="margin:0;">
+        <div class="pill empty">No locations loaded yet</div>
+      </div>
+    </div>
+  </div>
+  <vl class="visual-separator"></vl>
+  <div class="flex-this">
+    <div class="panel">
+      <div class="panel-title">Items at Selected Location</div>
+      <div id="locationItems" class="flex-this" style="margin:0;">
+        <div class="pill empty">Click a location</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flex-this">
+  <div class="sectionB">
+    <div class="panel">
+      <div class="panel-title">All Items</div>
+      <div id="allItems">
+        <div class="pill empty">No items loaded yet</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sectionC">
+    <div class="panel">
+      <div class="flex-this ready-refresh-row">
+        <div class="flex-this" style="margin:0;">
+          <input type="checkbox" id="readyCheckbox" disabled>
+          <div class="ready-label">Ready</div>
+        </div>
+        <button id="refreshBtn" disabled>Refresh</button>
+      </div>
+
+      <div id="sectionCTable" class="table-wrap">
+        <div class="empty-state">Select an item from "All Items" (or a location) to view its count table.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="logger-c">
+  <div class="logger" id="logger"></div>
+</div>
+
+<footer></footer>
+
+<script>
+// Session
+
+const API_BASE = "https://api.ancienthowl.net"; 
+
+async function sessionState() {
+  const response = await fetch(
+    `${API_BASE}/authsessionstate`,
+    {
+      method: "GET",
+      credentials: "include"
+    }
+  );
+
+  if (response.ok) {
+    const vis = document.getElementById("session-outid");
+    const invis = document.getElementById("session-inid");
+    invis.style.visibility = 'hidden';
+    vis.style.visibility = 'visible';
+  }
+}
+sessionState();
+
+async function login() {
+  const password = prompt("Enter password:");
+
+  if (!password) {
+    return;
+  }
+
+  const response = await fetch(
+    `${API_BASE}/authsessionin`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      credentials: "include",
+      body: JSON.stringify ({
+        password: password
+      })
+    }
+  );
+
+  if (!response.ok) {
+    alert("Invalid password");
+    return;
+  }
+
+  //alert("Authenticated");
+  const vis = document.getElementById("session-outid");
+  const invis = document.getElementById("session-inid");
+  invis.style.visibility = 'hidden';
+  vis.style.visibility = 'visible';
+}
+document.getElementById("session-inid").onclick = login;
+
+async function logout() {
+
+  const response = await fetch(
+    `${API_BASE}/authsessionout`,
+    {
+      method: "POST",
+      credentials: "include"
+    }
+  );
+
+  if (!response.ok) {
+    alert("Error has occured");
+    return;
+  }
+
+  // code
+  const vis = document.getElementById("session-inid");
+  const invis = document.getElementById("session-outid");
+  invis.style.visibility = 'hidden';
+  vis.style.visibility = 'visible';
+}
+document.getElementById("session-outid").onclick = logout;
+
+(function () {
+  "use strict";
+
+  // ------------------------------------------------------------
+  // Config
+  // ------------------------------------------------------------
+  const API_BASE = "https://api.ancienthowl.net"; // set this to your API root, e.g. "https://api.example.com"
+
+  // ------------------------------------------------------------
+  // State
+  // itemsData: {
+  //   [itemName]: {
+  //     expected: number,
+  //     note: string,
+  //     ready: boolean,
+  //     rows: [{ location: string, newVal: string|number, usedVal: string|number }]
+  //   }
+  // }
+  // ------------------------------------------------------------
+  let itemsData = {};
+  let selectedLocation = null;
+  let selectedItem = null;
+
+  const el = {
+    getNewBtn: document.getElementById("getNewBtn"),
+    completeBtn: document.getElementById("completeBtn"),
+    allLocations: document.getElementById("allLocations"),
+    locationItems: document.getElementById("locationItems"),
+    allItems: document.getElementById("allItems"),
+    sectionCTable: document.getElementById("sectionCTable"),
+    readyCheckbox: document.getElementById("readyCheckbox"),
+    refreshBtn: document.getElementById("refreshBtn"),
+    logger: document.getElementById("logger")
+    //metaTime: document.getElementById("metaTime")
+  };
+
+  function log(msg, isError) {
+    const line = document.createElement("div");
+    const stamp = new Date().toLocaleTimeString();
+    line.textContent = `[${stamp}] ${msg}`;
+    if (isError) line.classList.add("txt-red");
+    el.logger.appendChild(line);
+    el.logger.scrollTop = el.logger.scrollHeight;
+  }
+
+  function num(v) {
+    const n = Number(v);
+    return isNaN(n) ? 0 : n;
+  }
+
+  // ------------------------------------------------------------
+  // CSV serialize / deserialize
+  // Encodes one item's table rows (location, new, used) as CSV,
+  // one row per line, no header — enough to fully reconstruct
+  // that item's row set.
+  // ------------------------------------------------------------
+  function csvEscape(value) {
+    const s = String(value === undefined || value === null ? "" : value);
+    if (/[",\n]/.test(s)) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  }
+
+  function parseCsvLine(line) {
+    const result = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (line[i + 1] === '"') { cur += '"'; i++; }
+          else { inQuotes = false; }
+        } else {
+          cur += c;
+        }
+      } else {
+        if (c === '"') { inQuotes = true; }
+        else if (c === ",") { result.push(cur); cur = ""; }
+        else { cur += c; }
+      }
+    }
+    result.push(cur);
+    return result;
+  }
+
+  function serializeTable(itemName) {
+    const data = itemsData[itemName];
+    if (!data) return "";
+    return data.rows
+      .map(r => [itemName, r.location, r.newVal, r.usedVal].map(csvEscape).join(","))
+      .join("\n");
+  }
+
+  function deserializeTable(csvString) {
+    if (!csvString) return [];
+    return csvString
+      .split("\n")
+      .filter(line => line.length > 0)
+      .map(line => {
+        const [item, location, newVal, usedVal] = parseCsvLine(line);
+        return { item, location, newVal, usedVal };
+      });
+  }
+
+  // ------------------------------------------------------------
+  // GET — pull data from server
+  // Expected response: array of [item, locationsString, expected]
+  // locationsString is comma-separated, e.g. "2,1A"
+  // ------------------------------------------------------------
+  async function getNewData() {
+    try {
+      log("Requesting new data from server…");
+      const response = await fetch(`${API_BASE}/count-inventory-start-pull`, {
+        method: "GET",
+        credentials: "include"
+      });
+      if (!response.ok) throw new Error(`Server responded ${response.status}`);
+      const data = await response.json();
+
+      itemsData = {};
+      data.forEach(entry => {
+        const [itemName, locationsStr, expected] = entry;
+        const locations = String(locationsStr)
+          .split(",")
+          .map(s => s.trim())
+          .filter(Boolean);
+
+        itemsData[itemName] = {
+          expected: num(expected),
+          note: "",
+          ready: false,
+          rows: locations.map(loc => ({ location: loc, newVal: "", usedVal: "" }))
+        };
+      });
+
+      selectedItem = null;
+      selectedLocation = null;
+      renderLocations();
+      renderLocationItems();
+      renderItems();
+      renderSectionC();
+      log(`Loaded ${data.length} item(s) from server.`);
+    } catch (err) {
+      log(`Failed to fetch data: ${err.message}`, true);
+    }
+  }
+
+  // ------------------------------------------------------------
+  // POST — push completed table back to server
+  // Per item: [#Item_name, total, expected, difference, note,
+  //            total_new, total_used, Locations, serialization_string, ready_state]
+  // ------------------------------------------------------------
+  function computeItemSummary(itemName) {
+    const data = itemsData[itemName];
+    const totalNew = data.rows.reduce((acc, r) => acc + num(r.newVal), 0);
+    const totalUsed = data.rows.reduce((acc, r) => acc + num(r.usedVal), 0);
+    const total = totalNew + totalUsed;
+    const expected = data.expected;
+    const difference = expected - total;
+    return { totalNew, totalUsed, total, expected, difference };
+  }
+
+  function buildPushPayload() {
+    return Object.keys(itemsData).map(itemName => {
+      const data = itemsData[itemName];
+      const { totalNew, totalUsed, total, expected, difference } = computeItemSummary(itemName);
+      const locations = data.rows.map(r => r.location).filter(Boolean).join(",");
+      const serializationString = serializeTable(itemName);
+      return [
+        `#${itemName}`,
+        total,
+        expected,
+        difference,
+        data.note || "",
+        totalNew,
+        totalUsed,
+        locations,
+        serializationString,
+        data.ready
+      ];
+    });
+  }
+
+  async function completeAndPost() {
+    try {
+      const payload = buildPushPayload();
+      log("Posting completed table to server…");
+      const response = await fetch(`${API_BASE}/endpoint`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(`Server responded ${response.status}`);
+      log("Table posted successfully.");
+    } catch (err) {
+      log(`Failed to post data: ${err.message}`, true);
+    }
+  }
+
+  // ------------------------------------------------------------
+  // Section A — all locations / items-by-location
+  // ------------------------------------------------------------
+  function getAllLocations() {
+    const set = new Set();
+    Object.values(itemsData).forEach(data => {
+      data.rows.forEach(r => { if (r.location) set.add(r.location); });
+    });
+    return Array.from(set).sort();
+  }
+
+  function renderLocations() {
+    const locations = getAllLocations();
+    el.allLocations.innerHTML = "";
+    if (locations.length === 0) {
+      el.allLocations.innerHTML = '<div class="pill empty">No locations loaded yet</div>';
+      return;
+    }
+    locations.forEach(loc => {
+      const pill = document.createElement("div");
+      pill.className = "pill obj-location" + (loc === selectedLocation ? " selected-1" : "");
+      pill.textContent = loc;
+      pill.addEventListener("click", () => {
+        selectedLocation = loc;
+        renderLocations();
+        renderLocationItems();
+      });
+      el.allLocations.appendChild(pill);
+    });
+  }
+
+  function renderLocationItems() {
+    el.locationItems.innerHTML = "";
+    if (!selectedLocation) {
+      el.locationItems.innerHTML = '<div class="pill empty">Click a location</div>';
+      return;
+    }
+    const matches = Object.keys(itemsData).filter(itemName =>
+      itemsData[itemName].rows.some(r => r.location === selectedLocation)
+    );
+    if (matches.length === 0) {
+      el.locationItems.innerHTML = '<div class="pill empty">No items at this location</div>';
+      return;
+    }
+    matches.forEach(itemName => {
+      const pill = document.createElement("div");
+      pill.className = "pill obj-name" + (itemName === selectedItem ? " selected-1" : "");
+      pill.textContent = itemName;
+      pill.addEventListener("click", () => selectItem(itemName));
+      el.locationItems.appendChild(pill);
+    });
+  }
+
+  // ------------------------------------------------------------
+  // Section B — all items
+  // ------------------------------------------------------------
+  function renderItems() {
+    const names = Object.keys(itemsData);
+    el.allItems.innerHTML = "";
+    if (names.length === 0) {
+      el.allItems.innerHTML = '<div class="pill empty">No items loaded yet</div>';
+      return;
+    }
+    const wrap = document.createElement("div");
+    wrap.style.display = "flex";
+    wrap.style.flexDirection = "column";
+    wrap.style.gap = "6px";
+    names.forEach(itemName => {
+      const pill = document.createElement("div");
+      pill.className = "pill obj-name" + (itemName === selectedItem ? " selected-1" : "");
+      pill.textContent = itemName;
+      pill.addEventListener("click", () => selectItem(itemName));
+      wrap.appendChild(pill);
+    });
+    el.allItems.appendChild(wrap);
+  }
+
+  function selectItem(itemName) {
+    selectedItem = itemName;
+    renderItems();
+    renderLocationItems();
+    renderSectionC();
+  }
+
+  // ------------------------------------------------------------
+  // Section C — single-item table
+  // ------------------------------------------------------------
+  function diffClass(diff) {
+    if (diff === 0) return "diff-zero";
+    return diff > 0 ? "diff-pos" : "diff-neg";
+  }
+
+  function renderSectionC() {
+    if (!selectedItem || !itemsData[selectedItem]) {
+      el.sectionCTable.innerHTML =
+        '<div class="empty-state">Select an item from "All Items" (or a location) to view its count table.</div>';
+      el.readyCheckbox.disabled = true;
+      el.readyCheckbox.checked = false;
+      el.refreshBtn.disabled = true;
+      return;
+    }
+
+    const itemName = selectedItem;
+    const data = itemsData[itemName];
+    const { totalNew, totalUsed, total, expected, difference } = computeItemSummary(itemName);
+
+    el.readyCheckbox.disabled = false;
+    el.readyCheckbox.checked = !!data.ready;
+
+    el.refreshBtn.disabled = false;
+
+    el.sectionCTable.innerHTML = "";
+
+    // Header row
+    const header = document.createElement("div");
+    header.className = "table-row header-row";
+    header.innerHTML = `
+      <div class="col-name">Item</div>
+      <div class="col-location">Location</div>
+      <div class="col-new">New</div>
+      <div class="col-used">Used</div>
+      <div class="col-total">Total</div>
+      <div class="col-expected">Expected</div>
+      <div class="col-diff">Difference</div>
+      <div class="col-note">Note</div>
+    `;
+    el.sectionCTable.appendChild(header);
+
+    // Summary row
+    const summary = document.createElement("div");
+    summary.className = "table-row summary-row";
+    summary.innerHTML = `
+      <div class="col-name">#${escapeHtml(itemName)}</div>
+      <div class="col-location"></div>
+      <div class="col-new">${totalNew}</div>
+      <div class="col-used">${totalUsed}</div>
+      <div class="col-total">${total}</div>
+      <div class="col-expected">${expected}</div>
+      <div class="col-diff ${diffClass(difference)}">${difference}</div>
+      <div class="col-note"><input type="text" placeholder="Note…"></div>
+    `;
+    const noteInput = summary.querySelector(".col-note input");
+    noteInput.value = data.note || "";
+    noteInput.addEventListener("input", () => {
+      data.note = noteInput.value;
+    });
+    el.sectionCTable.appendChild(summary);
+
+    // Item rows
+    data.rows.forEach((row, idx) => {
+      const rowTotal = num(row.newVal) + num(row.usedVal);
+      const rowEl = document.createElement("div");
+      rowEl.className = "table-row item-row";
+      rowEl.innerHTML = `
+        <div class="col-name">${escapeHtml(itemName)}</div>
+        <div class="col-location">
+          <button class="row-btn remove-row">X</button>
+          <input type="text" class="loc-input">
+          <button class="row-btn add-row-below">V</button>
+        </div>
+        <div class="col-new cell-new"><input type="number" class="new-input"></div>
+        <div class="col-used cell-used"><input type="number" class="used-input"></div>
+        <div class="col-total cell-total row-total">${rowTotal}</div>
+        <div class="col-expected"></div>
+        <div class="col-diff"></div>
+        <div class="col-note"></div>
+      `;
+
+      const locInput = rowEl.querySelector(".loc-input");
+      const newInput = rowEl.querySelector(".new-input");
+      const usedInput = rowEl.querySelector(".used-input");
+      const rowTotalEl = rowEl.querySelector(".row-total");
+
+      locInput.value = row.location || "";
+      newInput.value = row.newVal;
+      usedInput.value = row.usedVal;
+
+      locInput.addEventListener("change", () => {
+        row.location = locInput.value.trim();
+        renderLocations();
+        renderLocationItems();
+      });
+
+      function updateRowTotal() {
+        row.newVal = newInput.value;
+        row.usedVal = usedInput.value;
+        rowTotalEl.textContent = num(row.newVal) + num(row.usedVal);
+      }
+      newInput.addEventListener("input", updateRowTotal);
+      usedInput.addEventListener("input", updateRowTotal);
+
+      rowEl.querySelector(".remove-row").addEventListener("click", () => {
+        data.rows.splice(idx, 1);
+        renderSectionC();
+        renderLocations();
+        renderLocationItems();
+      });
+
+      rowEl.querySelector(".add-row-below").addEventListener("click", () => {
+        data.rows.splice(idx + 1, 0, { location: "", newVal: "", usedVal: "" });
+        renderSectionC();
+      });
+
+      el.sectionCTable.appendChild(rowEl);
+    });
+  }
+
+  function refreshTable() {
+    if (!selectedItem) return;
+    // Recompute row totals + summary sums/difference and re-render.
+    renderSectionC();
+    log(`Refreshed totals for "${selectedItem}".`);
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement("div");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // ------------------------------------------------------------
+  // Wire up static controls
+  // ------------------------------------------------------------
+  el.getNewBtn.addEventListener("click", getNewData);
+  el.completeBtn.addEventListener("click", completeAndPost);
+  el.refreshBtn.addEventListener("click", refreshTable);
+  el.readyCheckbox.addEventListener("change", () => {
+    if (selectedItem && itemsData[selectedItem]) {
+      itemsData[selectedItem].ready = el.readyCheckbox.checked;
+    }
+  });
+
+  //el.metaTime.value = new Date().toLocaleString();
+
+  // Expose serialize/deserialize + state for console debugging / reuse.
+  window.InventoryPage = {
+    serializeTable,
+    deserializeTable,
+    buildPushPayload,
+    getState: () => itemsData
+  };
+
+  log("Ready. Click \"Get New\" to pull data from the server.");
+})();
+</script>
+</body>
+</html>

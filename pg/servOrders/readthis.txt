@@ -1,8 +1,7 @@
 
-Public ip:
-13.58.234.210
 
 browser blocks fetch() calls for security reasons
 
 fix:
 python3 -m http.server 8080
+

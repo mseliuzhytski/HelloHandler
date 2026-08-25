@@ -1,0 +1,88 @@
+📦 Raw shipment response: {
+0|shipstat |   "shipments": [
+0|shipstat |     {
+0|shipstat |       "shipmentId": 435906152,
+0|shipstat |       "orderId": 744578138,
+0|shipstat |       "orderKey": "bcbd3c52-3ec3-d5a0-e1e3-fd1469e8e254",
+0|shipstat |       "userId": "79d27a69-a4ad-4751-9d83-6fcf52b82724",
+0|shipstat |       "customerEmail": "",
+0|shipstat |       "orderNumber": "TrelloSL0002",
+0|shipstat |       "createDate": "2026-06-01T12:57:46.1430000",
+0|shipstat |       "shipDate": "2026-06-01",
+0|shipstat |       "shipmentCost": 5.48,
+0|shipstat |       "insuranceCost": 0,
+0|shipstat |       "trackingNumber": "9400150206217716791648",
+0|shipstat |       "isReturnLabel": false,
+0|shipstat |       "batchNumber": null,
+0|shipstat |       "carrierCode": "stamps_com",
+0|shipstat |       "serviceCode": "usps_first_class_mail",
+0|shipstat |       "packageCode": "package",
+0|shipstat |       "confirmation": null,
+0|shipstat |       "warehouseId": 1899,
+0|shipstat |       "voided": false,
+0|shipstat |       "voidDate": null,
+0|shipstat |       "marketplaceNotified": false,
+0|shipstat |       "notifyErrorMessage": null,
+0|shipstat |       "shipTo": {
+0|shipstat |         "name": "Nitza Loketch",
+0|shipstat |         "company": "",
+0|shipstat |         "street1": "15 QUINCE LN",
+0|shipstat |         "street2": "",
+0|shipstat |         "street3": null,
+0|shipstat |         "city": "SUFFERN",
+0|shipstat |         "state": "NY",
+0|shipstat |         "postalCode": "10901-3318",
+0|shipstat |         "country": "US",
+0|shipstat |         "phone": null,
+0|shipstat |         "residential": null,
+0|shipstat |         "addressVerified": null
+0|shipstat |       },
+0|shipstat |       "weight": {
+0|shipstat |         "value": 3,
+0|shipstat |         "units": "ounces",
+0|shipstat |         "WeightUnits": 1
+0|shipstat |       },
+0|shipstat |       "dimensions": null,
+0|shipstat |       "insuranceOptions": {
+0|shipstat |         "provider": null,
+0|shipstat |         "insureShipment": false,
+0|shipstat |         "insuredValue": 0
+0|shipstat |       },
+0|shipstat |       "advancedOptions": {
+0|shipstat |         "billToParty": "4",
+0|shipstat |         "billToAccount": null,
+0|shipstat |         "billToPostalCode": null,
+0|shipstat |         "billToCountryCode": null,
+0|shipstat |         "storeId": 7029
+0|shipstat |       },
+0|shipstat |       "shipmentItems": [
+0|shipstat |         {
+0|shipstat |           "orderItemId": 1286235119,
+0|shipstat |           "lineItemKey": null,
+0|shipstat |           "sku": "RCW-DVDRS2 x2 x20",
+0|shipstat |           "name": "",
+0|shipstat |           "imageUrl": null,
+0|shipstat |           "weight": null,
+0|shipstat |           "quantity": 1,
+0|shipstat |           "unitPrice": 0,
+0|shipstat |           "taxAmount": null,
+0|shipstat |           "shippingAmount": null,
+0|shipstat |           "warehouseLocation": null,
+0|shipstat |           "options": null,
+0|shipstat |           "productId": 56243501,
+0|shipstat |           "fulfillmentSku": null,
+0|shipstat |           "adjustment": false,
+0|shipstat |           "upc": null,
+0|shipstat |           "createDate": "2026-06-01T12:45:14.337",
+0|shipstat |           "modifyDate": "2026-06-01T12:45:14.337"
+0|shipstat |         }
+0|shipstat |       ],
+0|shipstat |       "labelData": null,
+0|shipstat |       "formData": null
+0|shipstat |     }
+0|shipstat |   ],
+0|shipstat |   "total": 1,
+0|shipstat |   "page": 1,
+0|shipstat |   "pages": 1
+0|shipstat | }
+0|shipstat |    📋 Shipments to process: 1

@@ -71,3 +71,17 @@ bash# From your local machine:
 curl http://<YOUR_PUBLIC_IP>:3000/health
 You should get back:
 json{ "status": "ok", "shipmentsStored": 0, "uptime": 12.3 }
+
+CURL with API_KEY
+
+curl ... -H "x-api-key: $(cat ~/.myapikey)"	>> from file
+
+Option 2: Use an environment variable (most common)
+Add to your shell profile (~/.bashrc, ~/.zshrc, etc.):
+bash: export API_KEY="your-api-key-here"
+Reload:
+bash: source ~/.bashrc
+Then:
+bash: curl https://myapicall/testapi \
+  -H "x-api-key: $API_KEY"
+
