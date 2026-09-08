@@ -1,776 +1,804 @@
-{\rtf1\ansi\ansicpg1252\cocoartf2870
-\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fnil\fcharset0 Menlo-Regular;}
-{\colortbl;\red255\green255\blue255;\red21\green98\blue39;\red246\green247\blue249;\red46\green49\blue51;
-\red20\green67\blue174;\red186\green6\blue115;\red162\green0\blue16;\red18\green115\blue126;\red77\green80\blue85;
-\red0\green0\blue0;\red97\green3\blue173;}
-{\*\expandedcolortbl;;\cssrgb\c7451\c45098\c20000;\cssrgb\c97255\c97647\c98039;\cssrgb\c23529\c25098\c26275;
-\cssrgb\c9412\c35294\c73725;\cssrgb\c78824\c15294\c52549;\cssrgb\c70196\c7843\c7059;\cssrgb\c3529\c52157\c56863;\cssrgb\c37255\c38824\c40784;
-\cssrgb\c0\c0\c0;\cssrgb\c46275\c15294\c73333;}
-\margl1440\margr1440\vieww11520\viewh8400\viewkind0
-\deftab720
-\pard\pardeftab720\partightenfactor0
+/**
+ * INVENTORY / CALIBRATE / COUNT AUTOMATION
+ * ------------------------------------------
+ * Sheets involved:
+ *   - "Inventory"        Col B (2) = item name
+ *                         Col C (3) = locations, separated by comma, space, or both
+ *                         Col D (4) = quantity
+ *   - "Calibrate Cycle"  B3 = number of days
+ *                         A5 = dropdown: MENU / Calibrate / Clear / Refresh
+ *   - "Records"          B2  = cycle name (user-entered)
+ *                         A3  = dropdown: CYCLE MENU / NEW CYCLE
+ *                         Row 5 = Day 1, Day 2, ... (one per column, starting col A)
+ *                         Row 6 = "Started" / completion date, under the matching day column
+ *                         A7  = dropdown: COUNT MENU / START / COMPLETE
+ *                         B8  = dropdown: SELECT / Day 1 / Day 2 / ...
+ *                         Row 10 = log table header (pre-existing, not managed by this script)
+ *                         Row 11+ = permanent log table (never cleared), columns A:M:
+ *                           A Cycle name, B Cycle Day, C Date, D Sku, E Counted, F Stock,
+ *                           G Difference, H Note, I New, J Refurbished, K Locations,
+ *                           L Object, M Buttons (dropdown: options / view)
+ *   - "Count"             Pure display/view sheet. Fully rebuilt whenever a log row's
+ *                         Buttons cell (col M) is switched to "view". No calculations,
+ *                         no menus, nothing persists here between views.
+ *
+ * External counting server:
+ *   - START sends the day's items to POST {SERVER_BASE_URL}{SERVER_START_ENDPOINT}
+ *     as a JSON array of [item, "loc1,loc2,...", quantity] entries.
+ *   - COMPLETE pulls the day's counted results from POST
+ *     {SERVER_BASE_URL}{SERVER_COMPLETE_ENDPOINT}, sending { cycleName, cycleDay }
+ *     as the JSON body, and expects a JSON array response where each item is:
+ *       [ sku(with "#"), total_number, expected_number, difference_number, note_text,
+ *         total_new_number, total_refurbished_number, locations_values(comma-separated),
+ *         object_string, ready_conditional(ignored) ]
+ *   Both requests are authenticated with header "x-api-key", read from the Script
+ *   Property "YOUR_API_KEY" (Project Settings > Script Properties).
+ *
+ * ============================= CALIBRATE CYCLE =============================
+ *   - "Clear": wipes row 11+ in Calibrate Cycle, resets A5 to "MENU".
+ *   - "Calibrate": pulls Inventory items with quantity > 0, splits them across
+ *     B3 "Calibrate Day" groups so each day's total quantity is as balanced
+ *     as possible (LPT algorithm), writes result from row 11, resets A5.
+ *   - "Refresh": re-pulls current quantities for items already in the table
+ *     (does not change which items/days exist), updates col C and day
+ *     Totals in col E, resets A5. Items no longer in Inventory -> qty 0.
+ *
+ * ================================= RECORDS ==================================
+ *   CYCLE MENU (A3):
+ *   - "NEW CYCLE": counts how many "Calibrate Day N" blocks exist in
+ *     Calibrate Cycle (col A, from row 11 down), clears + rewrites row 5
+ *     with "Day 1", "Day 2", ... (starting col A), clears row 6 as well,
+ *     rebuilds the B8 dropdown as SELECT + each day, sets B8 to "SELECT",
+ *     resets A3 to "CYCLE MENU".
+ *
+ *   COUNT MENU (A7):
+ *   - "START": reads B8. If "SELECT", does nothing (just resets A7).
+ *     Otherwise writes "Started" in row 6 under the matching day column,
+ *     finds the matching "Calibrate Day N" block in Calibrate Cycle, grabs
+ *     its item names, looks up fresh quantity + locations for each item
+ *     from Inventory (locations parsed from a comma/space/mixed-delimited
+ *     string, sorted ascending by leading number, no-leading-number
+ *     locations sorted last), and POSTs the result to the external
+ *     counting server. Resets A7 to "COUNT MENU" when done.
+ *   - "COMPLETE": reads B2/B8, POSTs { cycleName, cycleDay } to the server's
+ *     complete endpoint, and appends one log row (cols A:M) per item
+ *     returned, with today's date in col C and "options" as the default
+ *     Buttons value (with data validation list "options"/"view"). Every
+ *     item returned is logged (no filtering). Then, regardless of whether
+ *     any rows were added, writes today's date into row 6 under the
+ *     matching day column (replacing "Started"). Resets A7 to
+ *     "COUNT MENU" when done.
+ *
+ *   LOG TABLE Buttons column (col M, row 11+):
+ *   - Switching a row's Buttons cell to "view": colors that cell light
+ *     green, then clears the Count sheet entirely and rebuilds it as a
+ *     single-item view table (see buildCountSheetView) using that row's
+ *     Sku/Counted/Stock/Difference/Note/New/Refurbished/Object values.
+ *   - Switching back to "options": clears the green background.
+ */
 
-\f0\fs26 \cf2 \cb3 \expnd0\expndtw0\kerning0
-\outl0\strokewidth0 \strokec2 /**\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * INVENTORY / CALIBRATE / COUNT AUTOMATION\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * ------------------------------------------\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * Sheets involved:\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *   - "Inventory"        Col B (2) = item name\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *                         Col C (3) = locations, comma-separated (e.g. "A10,2B1,11A")\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *                         Col D (4) = quantity\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *   - "Calibrate Cycle"  B3 = number of days\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *                         A5 = dropdown: MENU / Calibrate / Clear / Refresh\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *   - "Records"          B2 = cycle name (user-entered)\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *                         A3 = dropdown: CYCLE MENU / NEW CYCLE\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *                         Row 5 = Day 1, Day 2, ... (one per column, starting col A)\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *                         Row 6 = "Started" / completion date, under the matching day column\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *                         A7 = dropdown: COUNT MENU / START / COMPLETE\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *                         B8 = dropdown: SELECT / Day 1 / Day 2 / ...\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *                         Row 11+ = permanent discrepancy log table (never cleared)\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *   - "Count"             Results written starting row 2.\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *                         Col B = item name, Col H = quantity (system-filled)\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *                         Col C = multiply x, Col D = multiply y (per detail row)\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *                         Col E = addition, Col F = subtract (per detail row)\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *                         Col G = Total, Col I = Difference (computed), Col J = Note (user-filled)\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *                         A1 = dropdown: MENU / COUNT\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * ============================= CALIBRATE CYCLE =============================\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *   - "Clear": wipes row 11+ in Calibrate Cycle, resets A5 to "MENU".\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *   - "Calibrate": pulls Inventory items with quantity > 0, splits them across\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     B3 "Calibrate Day" groups so each day's total quantity is as balanced\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     as possible (LPT algorithm), writes result from row 11, resets A5.\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *   - "Refresh": re-pulls current quantities for items already in the table\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     (does not change which items/days exist), updates col C and day\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     Totals in col E, resets A5. Items no longer in Inventory -> qty 0.\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * ================================= RECORDS ==================================\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *   CYCLE MENU (A3):\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *   - "NEW CYCLE": counts how many "Calibrate Day N" blocks exist in\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     Calibrate Cycle (col A, from row 11 down), clears + rewrites row 5\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     with "Day 1", "Day 2", ... (starting col A), clears row 6 as well,\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     rebuilds the B8 dropdown as SELECT + each day, sets B8 to "SELECT",\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     resets A3 to "CYCLE MENU".\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *   COUNT MENU (A7):\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *   - "START": reads B8. If "SELECT", does nothing (just resets A7).\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     Otherwise writes "Started" in row 6 under the matching day column,\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     finds the matching "Calibrate Day N" block in Calibrate Cycle, grabs\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     its item names, looks up fresh quantity + locations for each item\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     from Inventory (locations sorted ascending by leading number, items\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     with no leading number sorted last), and sends the result as a JSON\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     array of [item, "loc1,loc2,...", quantity] entries via a POST request\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     to the external counting server (SERVER_BASE_URL +\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     SERVER_START_ENDPOINT), authenticated with the "YOUR_API_KEY" Script\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     Property. The Count sheet is no longer written to by START. Resets\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     A7 to "COUNT MENU" when done.\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *   - "COMPLETE": scans the Count sheet for item rows where Total (col G)\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     is a number and doesn't equal Quantity (col H), OR Note (col J) is\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     non-empty. For each such row, appends one row to the Records log\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     table (row 11+, never cleared) with: cycle name (B2), cycle day (B8),\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     today's date (America/New_York), item name, total, quantity,\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     difference, note. Then, regardless of whether any log rows were\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     added, writes today's date into row 6 under the matching day column\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     (replacing "Started") to mark that day's count as complete. Resets\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     A7 to "COUNT MENU" when done.\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * ================================== COUNT ===================================\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *   A1 dropdown:\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *   - "COUNT": for every non-item (detail/location) row: multiply term =\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     x * y (col C * col D); if only one of x/y is filled, the other is\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     treated as 1; if both are blank, the multiply term is 0. Addition\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     (col E) and subtract (col F) are added/subtracted only if filled in\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     (blank = skipped, contributes 0). Row total = multiply + addition -\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     subtract, written to col G. If a detail row has all four inputs\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     blank, its col G is left blank (not zeroed) since there's nothing to\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     carry. Each item row's Total (col G) is then set to the sum of all\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     its detail rows' totals, and its Difference (col I) is set to\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     Total - Quantity (col H), only when Quantity is a number. Also\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     applies background colors: cols C:D light yellow, col E light green,\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     col F light red, col G light blue, and each full item row light gray\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     (overriding the column colors on that row). Resets A1 to "MENU" when\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *     done.\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  */\cf4 \cb1 \strokec4 \
-\
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 CALIBRATE_SHEET_NAME\cf4 \strokec4  = \cf7 \strokec7 "Calibrate Cycle"\cf4 \strokec4 ;\cb1 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 INVENTORY_SHEET_NAME\cf4 \strokec4  = \cf7 \strokec7 "Inventory"\cf4 \strokec4 ;\cb1 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 RECORDS_SHEET_NAME\cf4 \strokec4    = \cf7 \strokec7 "Records"\cf4 \strokec4 ;\cb1 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 COUNT_SHEET_NAME\cf4 \strokec4      = \cf7 \strokec7 "Count"\cf4 \strokec4 ;\cb1 \
-\
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 START_ROW\cf4 \strokec4  = \cf8 \strokec8 11\cf4 \strokec4 ;      \cf9 \strokec9 // Calibrate Cycle table starts here\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 CLEAR_COLS\cf4 \strokec4  = \cf8 \strokec8 5\cf4 \strokec4 ;      \cf9 \strokec9 // Calibrate Cycle table is columns A:E\cf4 \cb1 \strokec4 \
-\
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 RECORDS_DAY_ROW\cf4 \strokec4  = \cf8 \strokec8 5\cf4 \strokec4 ;        \cf9 \strokec9 // row where Day 1, Day 2... are written\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 RECORDS_STATUS_ROW\cf4 \strokec4  = \cf8 \strokec8 6\cf4 \strokec4 ;     \cf9 \strokec9 // row where "Started" / completion date go\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 RECORDS_DAY_START_COL\cf4 \strokec4  = \cf8 \strokec8 1\cf4 \strokec4 ;  \cf9 \strokec9 // column A\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 RECORDS_MAX_DAY_COLS\cf4 \strokec4  = \cf8 \strokec8 60\cf4 \strokec4 ;  \cf9 \strokec9 // generous width to clear on refresh\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 RECORDS_DAY_CELL\cf4 \strokec4  = \cf7 \strokec7 "B8"\cf4 \strokec4 ;\cb1 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 RECORDS_CYCLE_NAME_CELL\cf4 \strokec4  = \cf7 \strokec7 "B2"\cf4 \strokec4 ;\cb1 \
-\
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 LOG_START_ROW\cf4 \strokec4  = \cf8 \strokec8 11\cf4 \strokec4 ; \cf9 \strokec9 // Records discrepancy log table starts here, never cleared\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 LOG_START_COL\cf4 \strokec4  = \cf8 \strokec8 1\cf4 \strokec4 ;  \cf9 \strokec9 // column A\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 LOG_NUM_COLS\cf4 \strokec4  = \cf8 \strokec8 8\cf4 \strokec4 ;\cb1 \
-\
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 COUNT_START_ROW\cf4 \strokec4  = \cf8 \strokec8 2\cf4 \strokec4 ;\cb1 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 COUNT_COLS\cf4 \strokec4  = \cf8 \strokec8 8\cf4 \strokec4 ;      \cf9 \strokec9 // A:H, used when writing item/location rows\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 COUNT_READ_COLS\cf4 \strokec4  = \cf8 \strokec8 10\cf4 \strokec4 ; \cf9 \strokec9 // A:J, used when reading back Total/Difference/Note\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 COUNT_CALC_COLS\cf4 \strokec4  = \cf8 \strokec8 9\cf4 \strokec4 ;  \cf9 \strokec9 // A:I, used by the COUNT calculation pass\cf4 \cb1 \strokec4 \
-\
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 TIMEZONE\cf4 \strokec4  = \cf7 \strokec7 "America/New_York"\cf4 \strokec4 ;\cb1 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 DATE_FORMAT\cf4 \strokec4  = \cf7 \strokec7 "MM/dd/yyyy"\cf4 \strokec4 ;\cb1 \
-\
-\cf9 \cb3 \strokec9 // External counting server (START sends the day's items here instead of\cf4 \cb1 \strokec4 \
-\cf9 \cb3 \strokec9 // writing to the Count sheet). Requires a Script Property "YOUR_API_KEY".\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 SERVER_BASE_URL\cf4 \strokec4  = \cf7 \strokec7 "https://api.ancienthowl.net"\cf4 \strokec4 ;\cb1 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 SERVER_START_ENDPOINT\cf4 \strokec4  = \cf7 \strokec7 "/count-inventory-start"\cf4 \strokec4 ;\cb1 \
-\
-\cf9 \cb3 \strokec9 // Standard Google Sheets palette colors used by the COUNT formatting step\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 COLOR_MULTIPLY\cf4 \strokec4  = \cf7 \strokec7 "#fff2cc"\cf4 \strokec4 ;  \cf9 \strokec9 // light yellow 3 (cols C:D)\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 COLOR_ADDITION\cf4 \strokec4  = \cf7 \strokec7 "#d9ead3"\cf4 \strokec4 ;  \cf9 \strokec9 // light green 3  (col E)\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 COLOR_SUBTRACT\cf4 \strokec4  = \cf7 \strokec7 "#f4cccc"\cf4 \strokec4 ;  \cf9 \strokec9 // light red 3    (col F)\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 COLOR_TOTAL\cf4 \strokec4     = \cf7 \strokec7 "#cfe2f3"\cf4 \strokec4 ;  \cf9 \strokec9 // light blue 3   (col G)\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 COLOR_ITEM_ROW\cf4 \strokec4  = \cf7 \strokec7 "#efefef"\cf4 \strokec4 ;  \cf9 \strokec9 // light gray 2   (entire item row)\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 var\cf4 \strokec4  \cf6 \strokec6 ITEM_ROW_FORMAT_COLS\cf4 \strokec4  = \cf8 \strokec8 10\cf4 \strokec4 ;   \cf9 \strokec9 // A:J, width of the row-wide item-row highlight\cf4 \cb1 \strokec4 \
-\
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 onEdit\strokec4 (\strokec10 e\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (!\strokec10 e\strokec4  || !\strokec10 e\strokec4 .\strokec10 range\strokec4 ) \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 sheet\strokec4  = \strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getSheet\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 sheetName\strokec4  = \strokec10 sheet\strokec4 .\strokec10 getName\strokec4 ();\cb1 \
-\
-\cb3   \cf9 \strokec9 // ---------------- Calibrate Cycle sheet ----------------\cf4 \cb1 \strokec4 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 sheetName\strokec4  === \cf6 \strokec6 CALIBRATE_SHEET_NAME\cf4 \strokec4 ) \{\cb1 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getRow\strokec4 () !== \cf8 \strokec8 5\cf4 \strokec4  || \strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getColumn\strokec4 () !== \cf8 \strokec8 1\cf4 \strokec4 ) \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getNumRows\strokec4 () !== \cf8 \strokec8 1\cf4 \strokec4  || \strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getNumColumns\strokec4 () !== \cf8 \strokec8 1\cf4 \strokec4 ) \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 action\strokec4  = \strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getValue\strokec4 ();\cb1 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 action\strokec4  === \cf7 \strokec7 "Clear"\cf4 \strokec4 ) \{\cb1 \
-\cb3       \strokec10 clearCalibrateTable\strokec4 (\strokec10 sheet\strokec4 );\cb1 \
-\cb3     \} \cf5 \strokec5 else\cf4 \strokec4  \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 action\strokec4  === \cf7 \strokec7 "Calibrate"\cf4 \strokec4 ) \{\cb1 \
-\cb3       \strokec10 runCalibrate\strokec4 (\strokec10 sheet\strokec4 );\cb1 \
-\cb3     \} \cf5 \strokec5 else\cf4 \strokec4  \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 action\strokec4  === \cf7 \strokec7 "Refresh"\cf4 \strokec4 ) \{\cb1 \
-\cb3       \strokec10 refreshCalibrateQuantities\strokec4 (\strokec10 sheet\strokec4 );\cb1 \
-\cb3     \}\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf9 \strokec9 // ------------------- Records sheet ----------------------\cf4 \cb1 \strokec4 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 sheetName\strokec4  === \cf6 \strokec6 RECORDS_SHEET_NAME\cf4 \strokec4 ) \{\cb1 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getNumRows\strokec4 () !== \cf8 \strokec8 1\cf4 \strokec4  || \strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getNumColumns\strokec4 () !== \cf8 \strokec8 1\cf4 \strokec4 ) \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\
-\cb3     \cf9 \strokec9 // CYCLE MENU (A3)\cf4 \cb1 \strokec4 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getRow\strokec4 () === \cf8 \strokec8 3\cf4 \strokec4  && \strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getColumn\strokec4 () === \cf8 \strokec8 1\cf4 \strokec4 ) \{\cb1 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 cycleAction\strokec4  = \strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getValue\strokec4 ();\cb1 \
-\cb3       \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 cycleAction\strokec4  === \cf7 \strokec7 "NEW CYCLE"\cf4 \strokec4 ) \{\cb1 \
-\cb3         \strokec10 runNewCycle\strokec4 (\strokec10 sheet\strokec4 );\cb1 \
-\cb3       \}\cb1 \
-\cb3       \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3     \}\cb1 \
-\
-\cb3     \cf9 \strokec9 // COUNT MENU (A7)\cf4 \cb1 \strokec4 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getRow\strokec4 () === \cf8 \strokec8 7\cf4 \strokec4  && \strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getColumn\strokec4 () === \cf8 \strokec8 1\cf4 \strokec4 ) \{\cb1 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 countAction\strokec4  = \strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getValue\strokec4 ();\cb1 \
-\cb3       \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 countAction\strokec4  === \cf7 \strokec7 "START"\cf4 \strokec4 ) \{\cb1 \
-\cb3         \strokec10 runCountStart\strokec4 (\strokec10 sheet\strokec4 );\cb1 \
-\cb3       \} \cf5 \strokec5 else\cf4 \strokec4  \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 countAction\strokec4  === \cf7 \strokec7 "COMPLETE"\cf4 \strokec4 ) \{\cb1 \
-\cb3         \strokec10 runCountComplete\strokec4 (\strokec10 sheet\strokec4 );\cb1 \
-\cb3       \}\cb1 \
-\cb3       \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3     \}\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf9 \strokec9 // -------------------- Count sheet -----------------------\cf4 \cb1 \strokec4 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 sheetName\strokec4  === \cf6 \strokec6 COUNT_SHEET_NAME\cf4 \strokec4 ) \{\cb1 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getRow\strokec4 () !== \cf8 \strokec8 1\cf4 \strokec4  || \strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getColumn\strokec4 () !== \cf8 \strokec8 1\cf4 \strokec4 ) \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getNumRows\strokec4 () !== \cf8 \strokec8 1\cf4 \strokec4  || \strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getNumColumns\strokec4 () !== \cf8 \strokec8 1\cf4 \strokec4 ) \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 countMenuAction\strokec4  = \strokec10 e\strokec4 .\strokec10 range\strokec4 .\strokec10 getValue\strokec4 ();\cb1 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 countMenuAction\strokec4  === \cf7 \strokec7 "COUNT"\cf4 \strokec4 ) \{\cb1 \
-\cb3       \strokec10 runCountCalculations\strokec4 (\strokec10 sheet\strokec4 );\cb1 \
-\cb3     \}\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\cb3 \}\cb1 \
-\
-\cf9 \cb3 \strokec9 /* ============================================================\cf4 \cb1 \strokec4 \
-\cf9 \cb3 \strokec9  *                     CALIBRATE CYCLE LOGIC\cf4 \cb1 \strokec4 \
-\cf9 \cb3 \strokec9  * ============================================================ */\cf4 \cb1 \strokec4 \
-\
-\cf2 \cb3 \strokec2 /** Clears row 11+ and resets the dropdown to MENU */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 clearCalibrateTable\strokec4 (\strokec10 sheet\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 lastRow\strokec4  = \strokec10 sheet\strokec4 .\strokec10 getMaxRows\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 lastRow\strokec4  >= \cf6 \strokec6 START_ROW\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 sheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 START_ROW\cf4 \strokec4 , \cf8 \strokec8 1\cf4 \strokec4 , \strokec10 lastRow\strokec4  - \cf6 \strokec6 START_ROW\cf4 \strokec4  + \cf8 \strokec8 1\cf4 \strokec4 , \cf6 \strokec6 CLEAR_COLS\cf4 \strokec4 ).\strokec10 clearContent\strokec4 ();\cb1 \
-\cb3   \}\cb1 \
-\cb3   \strokec10 sheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A5"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "MENU"\cf4 \strokec4 );\cb1 \
-\cb3 \}\cb1 \
-\
-\cf2 \cb3 \strokec2 /** Reads Inventory, balances items across N days, writes the table */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 runCalibrate\strokec4 (\strokec10 sheet\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 ui\strokec4  = \cf6 \strokec6 SpreadsheetApp\cf4 \strokec4 .\strokec10 getUi\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 ss\strokec4  = \strokec10 sheet\strokec4 .\strokec10 getParent\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 invSheet\strokec4  = \strokec10 ss\strokec4 .\strokec10 getSheetByName\strokec4 (\cf6 \strokec6 INVENTORY_SHEET_NAME\cf4 \strokec4 );\cb1 \
-\
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (!\strokec10 invSheet\strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 'Sheet "'\cf4 \strokec4  + \cf6 \strokec6 INVENTORY_SHEET_NAME\cf4 \strokec4  + \cf7 \strokec7 '" not found.'\cf4 \strokec4 );\cb1 \
-\cb3     \strokec10 sheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A5"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "MENU"\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 daysRaw\strokec4  = \strokec10 sheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "B3"\cf4 \strokec4 ).\strokec10 getValue\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 days\strokec4  = \strokec10 parseInt\strokec4 (\strokec10 daysRaw\strokec4 , \cf8 \strokec8 10\cf4 \strokec4 );\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 isNaN\strokec4 (\strokec10 days\strokec4 ) || \strokec10 days\strokec4  < \cf8 \strokec8 1\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 "Please enter a valid number of days (1 or more) in B3."\cf4 \strokec4 );\cb1 \
-\cb3     \strokec10 sheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A5"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "MENU"\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 lastRow\strokec4  = \strokec10 invSheet\strokec4 .\strokec10 getLastRow\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 lastRow\strokec4  < \cf8 \strokec8 1\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 clearCalibrateTable\strokec4 (\strokec10 sheet\strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 data\strokec4  = \strokec10 invSheet\strokec4 .\strokec10 getRange\strokec4 (\cf8 \strokec8 1\cf4 \strokec4 , \cf8 \strokec8 2\cf4 \strokec4 , \strokec10 lastRow\strokec4 , \cf8 \strokec8 3\cf4 \strokec4 ).\strokec10 getValues\strokec4 (); \cf9 \strokec9 // B:D -> [name, locations(unused), qty]\cf4 \cb1 \strokec4 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 items\strokec4  = [];\cb1 \
-\cb3   \strokec10 data\strokec4 .\strokec10 forEach\strokec4 (\cf5 \strokec5 function\cf4 \strokec4  (\strokec10 row\strokec4 ) \{\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 name\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 0\cf4 \strokec4 ];\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 qty\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 2\cf4 \strokec4 ];\cb1 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 name\strokec4  !== \cf7 \strokec7 ""\cf4 \strokec4  && \strokec10 name\strokec4  !== \cf5 \strokec5 null\cf4 \strokec4  && \cf5 \strokec5 typeof\cf4 \strokec4  \strokec10 qty\strokec4  === \cf7 \strokec7 "number"\cf4 \strokec4  && \strokec10 qty\strokec4  > \cf8 \strokec8 0\cf4 \strokec4 ) \{\cb1 \
-\cb3       \strokec10 items\strokec4 .\strokec10 push\strokec4 (\{ \strokec10 name\strokec4 : \strokec10 name\strokec4 , \strokec10 qty\strokec4 : \strokec10 qty\strokec4  \});\cb1 \
-\cb3     \}\cb1 \
-\cb3   \});\cb1 \
-\
-\cb3   \strokec10 clearCalibrateTable\strokec4 (\strokec10 sheet\strokec4 );\cb1 \
-\
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 items\strokec4 .\strokec10 length\strokec4  === \cf8 \strokec8 0\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 "No items with quantity greater than 0 were found in Inventory."\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \strokec10 items\strokec4 .\strokec10 sort\strokec4 (\cf5 \strokec5 function\cf4 \strokec4  (\strokec10 a\strokec4 , \strokec10 b\strokec4 ) \{ \cf5 \strokec5 return\cf4 \strokec4  \strokec10 b\strokec4 .\strokec10 qty\strokec4  - \strokec10 a\strokec4 .\strokec10 qty\strokec4 ; \});\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 numDays\strokec4  = \cf6 \strokec6 Math\cf4 \strokec4 .\strokec10 min\strokec4 (\strokec10 days\strokec4 , \strokec10 items\strokec4 .\strokec10 length\strokec4 );\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 dayTotals\strokec4  = \cf5 \strokec5 new\cf4 \strokec4  \cf6 \strokec6 Array\cf4 \strokec4 (\strokec10 numDays\strokec4 ).\strokec10 fill\strokec4 (\cf8 \strokec8 0\cf4 \strokec4 );\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 dayItems\strokec4  = [];\cb1 \
-\cb3   \cf5 \strokec5 for\cf4 \strokec4  (\cf5 \strokec5 var\cf4 \strokec4  \strokec10 i\strokec4  = \cf8 \strokec8 0\cf4 \strokec4 ; \strokec10 i\strokec4  < \strokec10 numDays\strokec4 ; \strokec10 i\strokec4 ++) \strokec10 dayItems\strokec4 .\strokec10 push\strokec4 ([]);\cb1 \
-\
-\cb3   \strokec10 items\strokec4 .\strokec10 forEach\strokec4 (\cf5 \strokec5 function\cf4 \strokec4  (\strokec10 item\strokec4 ) \{\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 minIdx\strokec4  = \cf8 \strokec8 0\cf4 \strokec4 ;\cb1 \
-\cb3     \cf5 \strokec5 for\cf4 \strokec4  (\cf5 \strokec5 var\cf4 \strokec4  \strokec10 i\strokec4  = \cf8 \strokec8 1\cf4 \strokec4 ; \strokec10 i\strokec4  < \strokec10 numDays\strokec4 ; \strokec10 i\strokec4 ++) \{\cb1 \
-\cb3       \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 dayTotals\strokec4 [\strokec10 i\strokec4 ] < \strokec10 dayTotals\strokec4 [\strokec10 minIdx\strokec4 ]) \strokec10 minIdx\strokec4  = \strokec10 i\strokec4 ;\cb1 \
-\cb3     \}\cb1 \
-\cb3     \strokec10 dayItems\strokec4 [\strokec10 minIdx\strokec4 ].\strokec10 push\strokec4 (\strokec10 item\strokec4 );\cb1 \
-\cb3     \strokec10 dayTotals\strokec4 [\strokec10 minIdx\strokec4 ] += \strokec10 item\strokec4 .\strokec10 qty\strokec4 ;\cb1 \
-\cb3   \});\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 output\strokec4  = [];\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 dayCounter\strokec4  = \cf8 \strokec8 1\cf4 \strokec4 ;\cb1 \
-\cb3   \cf5 \strokec5 for\cf4 \strokec4  (\cf5 \strokec5 var\cf4 \strokec4  \strokec10 d\strokec4  = \cf8 \strokec8 0\cf4 \strokec4 ; \strokec10 d\strokec4  < \strokec10 numDays\strokec4 ; \strokec10 d\strokec4 ++) \{\cb1 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 dayItems\strokec4 [\strokec10 d\strokec4 ].\strokec10 length\strokec4  === \cf8 \strokec8 0\cf4 \strokec4 ) \cf5 \strokec5 continue\cf4 \strokec4 ;\cb1 \
-\cb3     \strokec10 output\strokec4 .\strokec10 push\strokec4 ([\cf7 \strokec7 "Calibrate Day "\cf4 \strokec4  + \strokec10 dayCounter\strokec4 , \cf7 \strokec7 ""\cf4 \strokec4 , \cf7 \strokec7 ""\cf4 \strokec4 , \cf7 \strokec7 "Total:"\cf4 \strokec4 , \strokec10 dayTotals\strokec4 [\strokec10 d\strokec4 ]]);\cb1 \
-\cb3     \strokec10 dayItems\strokec4 [\strokec10 d\strokec4 ].\strokec10 forEach\strokec4 (\cf5 \strokec5 function\cf4 \strokec4  (\strokec10 item\strokec4 ) \{\cb1 \
-\cb3       \strokec10 output\strokec4 .\strokec10 push\strokec4 ([\cf7 \strokec7 ""\cf4 \strokec4 , \strokec10 item\strokec4 .\strokec10 name\strokec4 , \strokec10 item\strokec4 .\strokec10 qty\strokec4 , \cf7 \strokec7 ""\cf4 \strokec4 , \cf7 \strokec7 ""\cf4 \strokec4 ]);\cb1 \
-\cb3     \});\cb1 \
-\cb3     \strokec10 dayCounter\strokec4 ++;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 output\strokec4 .\strokec10 length\strokec4  > \cf8 \strokec8 0\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 sheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 START_ROW\cf4 \strokec4 , \cf8 \strokec8 1\cf4 \strokec4 , \strokec10 output\strokec4 .\strokec10 length\strokec4 , \cf8 \strokec8 5\cf4 \strokec4 ).\strokec10 setValues\strokec4 (\strokec10 output\strokec4 );\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \strokec10 sheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A5"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "MENU"\cf4 \strokec4 );\cb1 \
-\cb3 \}\cb1 \
-\
-\cf2 \cb3 \strokec2 /**\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * Re-pulls current quantities from Inventory for whatever items are\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * already in the table (rows 11+), without changing which items exist\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * or how they're grouped into days. Updates col C (item qty) and col E\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * (day Total) only.\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 refreshCalibrateQuantities\strokec4 (\strokec10 sheet\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 ui\strokec4  = \cf6 \strokec6 SpreadsheetApp\cf4 \strokec4 .\strokec10 getUi\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 ss\strokec4  = \strokec10 sheet\strokec4 .\strokec10 getParent\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 invSheet\strokec4  = \strokec10 ss\strokec4 .\strokec10 getSheetByName\strokec4 (\cf6 \strokec6 INVENTORY_SHEET_NAME\cf4 \strokec4 );\cb1 \
-\
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (!\strokec10 invSheet\strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 'Sheet "'\cf4 \strokec4  + \cf6 \strokec6 INVENTORY_SHEET_NAME\cf4 \strokec4  + \cf7 \strokec7 '" not found.'\cf4 \strokec4 );\cb1 \
-\cb3     \strokec10 sheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A5"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "MENU"\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 lastRow\strokec4  = \strokec10 sheet\strokec4 .\strokec10 getLastRow\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 lastRow\strokec4  < \cf6 \strokec6 START_ROW\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 sheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A5"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "MENU"\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 invLastRow\strokec4  = \strokec10 invSheet\strokec4 .\strokec10 getLastRow\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 invMap\strokec4  = \{\};\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 invLastRow\strokec4  >= \cf8 \strokec8 1\cf4 \strokec4 ) \{\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 invData\strokec4  = \strokec10 invSheet\strokec4 .\strokec10 getRange\strokec4 (\cf8 \strokec8 1\cf4 \strokec4 , \cf8 \strokec8 2\cf4 \strokec4 , \strokec10 invLastRow\strokec4 , \cf8 \strokec8 3\cf4 \strokec4 ).\strokec10 getValues\strokec4 (); \cf9 \strokec9 // B:D\cf4 \cb1 \strokec4 \
-\cb3     \strokec10 invData\strokec4 .\strokec10 forEach\strokec4 (\cf5 \strokec5 function\cf4 \strokec4  (\strokec10 row\strokec4 ) \{\cb1 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 name\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 0\cf4 \strokec4 ];\cb1 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 qty\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 2\cf4 \strokec4 ];\cb1 \
-\cb3       \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 name\strokec4  !== \cf7 \strokec7 ""\cf4 \strokec4  && \strokec10 name\strokec4  !== \cf5 \strokec5 null\cf4 \strokec4 ) \{\cb1 \
-\cb3         \strokec10 invMap\strokec4 [\strokec10 name\strokec4 ] = (\cf5 \strokec5 typeof\cf4 \strokec4  \strokec10 qty\strokec4  === \cf7 \strokec7 "number"\cf4 \strokec4 ) ? \strokec10 qty\strokec4  : \cf8 \strokec8 0\cf4 \strokec4 ;\cb1 \
-\cb3       \}\cb1 \
-\cb3     \});\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 numRows\strokec4  = \strokec10 lastRow\strokec4  - \cf6 \strokec6 START_ROW\cf4 \strokec4  + \cf8 \strokec8 1\cf4 \strokec4 ;\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 range\strokec4  = \strokec10 sheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 START_ROW\cf4 \strokec4 , \cf8 \strokec8 1\cf4 \strokec4 , \strokec10 numRows\strokec4 , \cf8 \strokec8 5\cf4 \strokec4 ); \cf9 \strokec9 // A:E\cf4 \cb1 \strokec4 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 values\strokec4  = \strokec10 range\strokec4 .\strokec10 getValues\strokec4 ();\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 missingItems\strokec4  = [];\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 headerIdx\strokec4  = -\cf8 \strokec8 1\cf4 \strokec4 ;\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 runningTotal\strokec4  = \cf8 \strokec8 0\cf4 \strokec4 ;\cb1 \
-\
-\cb3   \cf5 \strokec5 for\cf4 \strokec4  (\cf5 \strokec5 var\cf4 \strokec4  \strokec10 i\strokec4  = \cf8 \strokec8 0\cf4 \strokec4 ; \strokec10 i\strokec4  < \strokec10 values\strokec4 .\strokec10 length\strokec4 ; \strokec10 i\strokec4 ++) \{\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 row\strokec4  = \strokec10 values\strokec4 [\strokec10 i\strokec4 ];\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 colA\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 0\cf4 \strokec4 ];\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 colB\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 1\cf4 \strokec4 ];\cb1 \
-\
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 colA\strokec4  !== \cf7 \strokec7 ""\cf4 \strokec4  && \strokec10 colA\strokec4  !== \cf5 \strokec5 null\cf4 \strokec4 ) \{\cb1 \
-\cb3       \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 headerIdx\strokec4  !== -\cf8 \strokec8 1\cf4 \strokec4 ) \{\cb1 \
-\cb3         \strokec10 values\strokec4 [\strokec10 headerIdx\strokec4 ][\cf8 \strokec8 4\cf4 \strokec4 ] = \strokec10 runningTotal\strokec4 ;\cb1 \
-\cb3       \}\cb1 \
-\cb3       \strokec10 headerIdx\strokec4  = \strokec10 i\strokec4 ;\cb1 \
-\cb3       \strokec10 runningTotal\strokec4  = \cf8 \strokec8 0\cf4 \strokec4 ;\cb1 \
-\cb3     \} \cf5 \strokec5 else\cf4 \strokec4  \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 colB\strokec4  !== \cf7 \strokec7 ""\cf4 \strokec4  && \strokec10 colB\strokec4  !== \cf5 \strokec5 null\cf4 \strokec4 ) \{\cb1 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 newQty\strokec4 ;\cb1 \
-\cb3       \cf5 \strokec5 if\cf4 \strokec4  (\cf6 \strokec6 Object\cf4 \strokec4 .\strokec10 prototype\strokec4 .\strokec10 hasOwnProperty\strokec4 .\strokec10 call\strokec4 (\strokec10 invMap\strokec4 , \strokec10 colB\strokec4 )) \{\cb1 \
-\cb3         \strokec10 newQty\strokec4  = \strokec10 invMap\strokec4 [\strokec10 colB\strokec4 ];\cb1 \
-\cb3       \} \cf5 \strokec5 else\cf4 \strokec4  \{\cb1 \
-\cb3         \strokec10 newQty\strokec4  = \cf8 \strokec8 0\cf4 \strokec4 ;\cb1 \
-\cb3         \strokec10 missingItems\strokec4 .\strokec10 push\strokec4 (\strokec10 colB\strokec4 );\cb1 \
-\cb3       \}\cb1 \
-\cb3       \strokec10 values\strokec4 [\strokec10 i\strokec4 ][\cf8 \strokec8 2\cf4 \strokec4 ] = \strokec10 newQty\strokec4 ;\cb1 \
-\cb3       \strokec10 runningTotal\strokec4  += \strokec10 newQty\strokec4 ;\cb1 \
-\cb3     \}\cb1 \
-\cb3   \}\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 headerIdx\strokec4  !== -\cf8 \strokec8 1\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 values\strokec4 [\strokec10 headerIdx\strokec4 ][\cf8 \strokec8 4\cf4 \strokec4 ] = \strokec10 runningTotal\strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \strokec10 range\strokec4 .\strokec10 setValues\strokec4 (\strokec10 values\strokec4 );\cb1 \
-\cb3   \strokec10 sheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A5"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "MENU"\cf4 \strokec4 );\cb1 \
-\
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 missingItems\strokec4 .\strokec10 length\strokec4  > \cf8 \strokec8 0\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cb1 \
-\cb3       \cf7 \strokec7 "These items in the table were not found in Inventory and were set to 0:\\n"\cf4 \strokec4  +\cb1 \
-\cb3       \strokec10 missingItems\strokec4 .\strokec10 join\strokec4 (\cf7 \strokec7 ", "\cf4 \strokec4 )\cb1 \
-\cb3     );\cb1 \
-\cb3   \}\cb1 \
-\cb3 \}\cb1 \
-\
-\cf9 \cb3 \strokec9 /* ============================================================\cf4 \cb1 \strokec4 \
-\cf9 \cb3 \strokec9  *                         RECORDS LOGIC\cf4 \cb1 \strokec4 \
-\cf9 \cb3 \strokec9  * ============================================================ */\cf4 \cb1 \strokec4 \
-\
-\cf2 \cb3 \strokec2 /** NEW CYCLE: rebuilds the Day list (row 5), clears row 6, and the B8 dropdown */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 runNewCycle\strokec4 (\strokec10 recordsSheet\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 ui\strokec4  = \cf6 \strokec6 SpreadsheetApp\cf4 \strokec4 .\strokec10 getUi\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 ss\strokec4  = \strokec10 recordsSheet\strokec4 .\strokec10 getParent\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 calSheet\strokec4  = \strokec10 ss\strokec4 .\strokec10 getSheetByName\strokec4 (\cf6 \strokec6 CALIBRATE_SHEET_NAME\cf4 \strokec4 );\cb1 \
-\
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (!\strokec10 calSheet\strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 'Sheet "'\cf4 \strokec4  + \cf6 \strokec6 CALIBRATE_SHEET_NAME\cf4 \strokec4  + \cf7 \strokec7 '" not found.'\cf4 \strokec4 );\cb1 \
-\cb3     \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A3"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "CYCLE MENU"\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 lastRow\strokec4  = \strokec10 calSheet\strokec4 .\strokec10 getLastRow\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 dayCount\strokec4  = \cf8 \strokec8 0\cf4 \strokec4 ;\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 lastRow\strokec4  >= \cf6 \strokec6 START_ROW\cf4 \strokec4 ) \{\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 colA\strokec4  = \strokec10 calSheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 START_ROW\cf4 \strokec4 , \cf8 \strokec8 1\cf4 \strokec4 , \strokec10 lastRow\strokec4  - \cf6 \strokec6 START_ROW\cf4 \strokec4  + \cf8 \strokec8 1\cf4 \strokec4 , \cf8 \strokec8 1\cf4 \strokec4 ).\strokec10 getValues\strokec4 ();\cb1 \
-\cb3     \strokec10 colA\strokec4 .\strokec10 forEach\strokec4 (\cf5 \strokec5 function\cf4 \strokec4  (\strokec10 row\strokec4 ) \{\cb1 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 val\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 0\cf4 \strokec4 ];\cb1 \
-\cb3       \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 val\strokec4  !== \cf7 \strokec7 ""\cf4 \strokec4  && \strokec10 val\strokec4  !== \cf5 \strokec5 null\cf4 \strokec4  && \cf6 \strokec6 String\cf4 \strokec4 (\strokec10 val\strokec4 ).\strokec10 indexOf\strokec4 (\cf7 \strokec7 "Calibrate Day"\cf4 \strokec4 ) === \cf8 \strokec8 0\cf4 \strokec4 ) \{\cb1 \
-\cb3         \strokec10 dayCount\strokec4 ++;\cb1 \
-\cb3       \}\cb1 \
-\cb3     \});\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 dayCount\strokec4  === \cf8 \strokec8 0\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 'No "Calibrate Day" entries found in '\cf4 \strokec4  + \cf6 \strokec6 CALIBRATE_SHEET_NAME\cf4 \strokec4  + \cf7 \strokec7 '.'\cf4 \strokec4 );\cb1 \
-\cb3     \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A3"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "CYCLE MENU"\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf9 \strokec9 // Clear old day labels (row 5) AND old status/date row (row 6)\cf4 \cb1 \strokec4 \
-\cb3   \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 RECORDS_DAY_ROW\cf4 \strokec4 , \cf6 \strokec6 RECORDS_DAY_START_COL\cf4 \strokec4 , \cf8 \strokec8 2\cf4 \strokec4 , \cf6 \strokec6 RECORDS_MAX_DAY_COLS\cf4 \strokec4 ).\strokec10 clearContent\strokec4 ();\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 dayLabels\strokec4  = [];\cb1 \
-\cb3   \cf5 \strokec5 for\cf4 \strokec4  (\cf5 \strokec5 var\cf4 \strokec4  \strokec10 d\strokec4  = \cf8 \strokec8 1\cf4 \strokec4 ; \strokec10 d\strokec4  <= \strokec10 dayCount\strokec4 ; \strokec10 d\strokec4 ++) \strokec10 dayLabels\strokec4 .\strokec10 push\strokec4 (\cf7 \strokec7 "Day "\cf4 \strokec4  + \strokec10 d\strokec4 );\cb1 \
-\
-\cb3   \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 RECORDS_DAY_ROW\cf4 \strokec4 , \cf6 \strokec6 RECORDS_DAY_START_COL\cf4 \strokec4 , \cf8 \strokec8 1\cf4 \strokec4 , \strokec10 dayLabels\strokec4 .\strokec10 length\strokec4 ).\strokec10 setValues\strokec4 ([\strokec10 dayLabels\strokec4 ]);\cb1 \
-\
-\cb3   \cf9 \strokec9 // Rebuild B8 dropdown: SELECT + each day\cf4 \cb1 \strokec4 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 dropdownOptions\strokec4  = [\cf7 \strokec7 "SELECT"\cf4 \strokec4 ].\strokec10 concat\strokec4 (\strokec10 dayLabels\strokec4 );\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 rule\strokec4  = \cf6 \strokec6 SpreadsheetApp\cf4 \strokec4 .\strokec10 newDataValidation\strokec4 ()\cb1 \
-\cb3     .\strokec10 requireValueInList\strokec4 (\strokec10 dropdownOptions\strokec4 , \cf5 \strokec5 true\cf4 \strokec4 )\cb1 \
-\cb3     .\strokec10 setAllowInvalid\strokec4 (\cf5 \strokec5 false\cf4 \strokec4 )\cb1 \
-\cb3     .\strokec10 build\strokec4 ();\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 b8\strokec4  = \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 RECORDS_DAY_CELL\cf4 \strokec4 );\cb1 \
-\cb3   \strokec10 b8\strokec4 .\strokec10 setDataValidation\strokec4 (\strokec10 rule\strokec4 );\cb1 \
-\cb3   \strokec10 b8\strokec4 .\strokec10 setValue\strokec4 (\cf7 \strokec7 "SELECT"\cf4 \strokec4 );\cb1 \
-\
-\cb3   \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A3"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "CYCLE MENU"\cf4 \strokec4 );\cb1 \
-\cb3 \}\cb1 \
-\
-\cf2 \cb3 \strokec2 /** Finds the 1-based column in row 5 whose value matches dayLabel exactly. Returns -1 if not found. */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 findDayColumn\strokec4 (\strokec10 recordsSheet\strokec4 , \strokec10 dayLabel\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 rowVals\strokec4  = \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 RECORDS_DAY_ROW\cf4 \strokec4 , \cf6 \strokec6 RECORDS_DAY_START_COL\cf4 \strokec4 , \cf8 \strokec8 1\cf4 \strokec4 , \cf6 \strokec6 RECORDS_MAX_DAY_COLS\cf4 \strokec4 ).\strokec10 getValues\strokec4 ()[\cf8 \strokec8 0\cf4 \strokec4 ];\cb1 \
-\cb3   \cf5 \strokec5 for\cf4 \strokec4  (\cf5 \strokec5 var\cf4 \strokec4  \strokec10 i\strokec4  = \cf8 \strokec8 0\cf4 \strokec4 ; \strokec10 i\strokec4  < \strokec10 rowVals\strokec4 .\strokec10 length\strokec4 ; \strokec10 i\strokec4 ++) \{\cb1 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 rowVals\strokec4 [\strokec10 i\strokec4 ] === \strokec10 dayLabel\strokec4 ) \cf5 \strokec5 return\cf4 \strokec4  \cf6 \strokec6 RECORDS_DAY_START_COL\cf4 \strokec4  + \strokec10 i\strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\cb3   \cf5 \strokec5 return\cf4 \strokec4  -\cf8 \strokec8 1\cf4 \strokec4 ;\cb1 \
-\cb3 \}\cb1 \
-\
-\cf2 \cb3 \strokec2 /** Extracts a leading integer from a location string; returns Infinity if none (sorts last). */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 leadingLocationNumber\strokec4 (\strokec10 loc\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 m\strokec4  = \cf6 \strokec6 String\cf4 \strokec4 (\strokec10 loc\strokec4 ).\strokec10 match\strokec4 (\cf11 \strokec11 /^\\d+/\cf4 \strokec4 );\cb1 \
-\cb3   \cf5 \strokec5 return\cf4 \strokec4  \strokec10 m\strokec4  ? \strokec10 parseInt\strokec4 (\strokec10 m\strokec4 [\cf8 \strokec8 0\cf4 \strokec4 ], \cf8 \strokec8 10\cf4 \strokec4 ) : \cf6 \strokec6 Infinity\cf4 \strokec4 ;\cb1 \
-\cb3 \}\cb1 \
-\
-\cf2 \cb3 \strokec2 /** Sorts locations ascending by their leading number; ties broken alphabetically; no-leading-number locations sort last. */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 sortLocations\strokec4 (\strokec10 locations\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 return\cf4 \strokec4  \strokec10 locations\strokec4 .\strokec10 slice\strokec4 ().\strokec10 sort\strokec4 (\cf5 \strokec5 function\cf4 \strokec4  (\strokec10 a\strokec4 , \strokec10 b\strokec4 ) \{\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 na\strokec4  = \strokec10 leadingLocationNumber\strokec4 (\strokec10 a\strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 nb\strokec4  = \strokec10 leadingLocationNumber\strokec4 (\strokec10 b\strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 na\strokec4  !== \strokec10 nb\strokec4 ) \cf5 \strokec5 return\cf4 \strokec4  \strokec10 na\strokec4  - \strokec10 nb\strokec4 ;\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4  \cf6 \strokec6 String\cf4 \strokec4 (\strokec10 a\strokec4 ).\strokec10 localeCompare\strokec4 (\cf6 \strokec6 String\cf4 \strokec4 (\strokec10 b\strokec4 ));\cb1 \
-\cb3   \});\cb1 \
-\cb3 \}\cb1 \
-\
-\cf2 \cb3 \strokec2 /** START: pulls the selected day's items from Calibrate Cycle + Inventory into Count */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 runCountStart\strokec4 (\strokec10 recordsSheet\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 ui\strokec4  = \cf6 \strokec6 SpreadsheetApp\cf4 \strokec4 .\strokec10 getUi\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 ss\strokec4  = \strokec10 recordsSheet\strokec4 .\strokec10 getParent\strokec4 ();\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 dayValue\strokec4  = \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 RECORDS_DAY_CELL\cf4 \strokec4 ).\strokec10 getValue\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 dayValue\strokec4  === \cf7 \strokec7 "SELECT"\cf4 \strokec4  || \strokec10 dayValue\strokec4  === \cf7 \strokec7 ""\cf4 \strokec4  || \strokec10 dayValue\strokec4  === \cf5 \strokec5 null\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A7"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "COUNT MENU"\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 match\strokec4  = \cf6 \strokec6 String\cf4 \strokec4 (\strokec10 dayValue\strokec4 ).\strokec10 match\strokec4 (\cf11 \strokec11 /\\d+/\cf4 \strokec4 );\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (!\strokec10 match\strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 'Invalid day value in '\cf4 \strokec4  + \cf6 \strokec6 RECORDS_DAY_CELL\cf4 \strokec4  + \cf7 \strokec7 ': "'\cf4 \strokec4  + \strokec10 dayValue\strokec4  + \cf7 \strokec7 '"'\cf4 \strokec4 );\cb1 \
-\cb3     \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A7"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "COUNT MENU"\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 targetLabel\strokec4  = \cf7 \strokec7 "Calibrate Day "\cf4 \strokec4  + \strokec10 match\strokec4 [\cf8 \strokec8 0\cf4 \strokec4 ];\cb1 \
-\
-\cb3   \cf9 \strokec9 // Mark this day as started in row 6\cf4 \cb1 \strokec4 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 dayCol\strokec4  = \strokec10 findDayColumn\strokec4 (\strokec10 recordsSheet\strokec4 , \strokec10 dayValue\strokec4 );\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 dayCol\strokec4  !== -\cf8 \strokec8 1\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 RECORDS_STATUS_ROW\cf4 \strokec4 , \strokec10 dayCol\strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "Started"\cf4 \strokec4 );\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 calSheet\strokec4  = \strokec10 ss\strokec4 .\strokec10 getSheetByName\strokec4 (\cf6 \strokec6 CALIBRATE_SHEET_NAME\cf4 \strokec4 );\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (!\strokec10 calSheet\strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 'Sheet "'\cf4 \strokec4  + \cf6 \strokec6 CALIBRATE_SHEET_NAME\cf4 \strokec4  + \cf7 \strokec7 '" not found.'\cf4 \strokec4 );\cb1 \
-\cb3     \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A7"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "COUNT MENU"\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 itemNames\strokec4  = \strokec10 getItemsForDay\strokec4 (\strokec10 calSheet\strokec4 , \strokec10 targetLabel\strokec4 );\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 itemNames\strokec4 .\strokec10 length\strokec4  === \cf8 \strokec8 0\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 'No items found for "'\cf4 \strokec4  + \strokec10 targetLabel\strokec4  + \cf7 \strokec7 '" in '\cf4 \strokec4  + \cf6 \strokec6 CALIBRATE_SHEET_NAME\cf4 \strokec4  + \cf7 \strokec7 '.'\cf4 \strokec4 );\cb1 \
-\cb3     \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A7"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "COUNT MENU"\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 invSheet\strokec4  = \strokec10 ss\strokec4 .\strokec10 getSheetByName\strokec4 (\cf6 \strokec6 INVENTORY_SHEET_NAME\cf4 \strokec4 );\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (!\strokec10 invSheet\strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 'Sheet "'\cf4 \strokec4  + \cf6 \strokec6 INVENTORY_SHEET_NAME\cf4 \strokec4  + \cf7 \strokec7 '" not found.'\cf4 \strokec4 );\cb1 \
-\cb3     \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A7"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "COUNT MENU"\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 invLastRow\strokec4  = \strokec10 invSheet\strokec4 .\strokec10 getLastRow\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 invMap\strokec4  = \{\};\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 invLastRow\strokec4  >= \cf8 \strokec8 1\cf4 \strokec4 ) \{\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 invData\strokec4  = \strokec10 invSheet\strokec4 .\strokec10 getRange\strokec4 (\cf8 \strokec8 1\cf4 \strokec4 , \cf8 \strokec8 2\cf4 \strokec4 , \strokec10 invLastRow\strokec4 , \cf8 \strokec8 3\cf4 \strokec4 ).\strokec10 getValues\strokec4 (); \cf9 \strokec9 // B:D -> name, locations, qty\cf4 \cb1 \strokec4 \
-\cb3     \strokec10 invData\strokec4 .\strokec10 forEach\strokec4 (\cf5 \strokec5 function\cf4 \strokec4  (\strokec10 row\strokec4 ) \{\cb1 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 name\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 0\cf4 \strokec4 ];\cb1 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 locs\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 1\cf4 \strokec4 ];\cb1 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 qty\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 2\cf4 \strokec4 ];\cb1 \
-\cb3       \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 name\strokec4  !== \cf7 \strokec7 ""\cf4 \strokec4  && \strokec10 name\strokec4  !== \cf5 \strokec5 null\cf4 \strokec4 ) \{\cb1 \
-\cb3         \cf5 \strokec5 var\cf4 \strokec4  \strokec10 locList\strokec4  = [];\cb1 \
-\cb3         \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 locs\strokec4  !== \cf7 \strokec7 ""\cf4 \strokec4  && \strokec10 locs\strokec4  !== \cf5 \strokec5 null\cf4 \strokec4 ) \{\cb1 \
-\cb3           \strokec10 locList\strokec4  = \cf6 \strokec6 String\cf4 \strokec4 (\strokec10 locs\strokec4 ).\strokec10 split\strokec4 (\cf7 \strokec7 ","\cf4 \strokec4 ).\strokec10 map\strokec4 (\cf5 \strokec5 function\cf4 \strokec4  (\strokec10 s\strokec4 ) \{ \cf5 \strokec5 return\cf4 \strokec4  \strokec10 s\strokec4 .\strokec10 trim\strokec4 (); \}).\strokec10 filter\strokec4 (\cf5 \strokec5 function\cf4 \strokec4  (\strokec10 s\strokec4 ) \{ \cf5 \strokec5 return\cf4 \strokec4  \strokec10 s\strokec4  !== \cf7 \strokec7 ""\cf4 \strokec4 ; \});\cb1 \
-\cb3         \}\cb1 \
-\cb3         \strokec10 invMap\strokec4 [\strokec10 name\strokec4 ] = \{\cb1 \
-\cb3           \strokec10 qty\strokec4 : (\cf5 \strokec5 typeof\cf4 \strokec4  \strokec10 qty\strokec4  === \cf7 \strokec7 "number"\cf4 \strokec4 ) ? \strokec10 qty\strokec4  : \cf8 \strokec8 0\cf4 \strokec4 ,\cb1 \
-\cb3           \strokec10 locations\strokec4 : \strokec10 sortLocations\strokec4 (\strokec10 locList\strokec4 )\cb1 \
-\cb3         \};\cb1 \
-\cb3       \}\cb1 \
-\cb3     \});\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf9 \strokec9 // Build payload: one [item, "loc1,loc2,...", quantity] entry per item\cf4 \cb1 \strokec4 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 payload\strokec4  = [];\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 missing\strokec4  = [];\cb1 \
-\
-\cb3   \strokec10 itemNames\strokec4 .\strokec10 forEach\strokec4 (\cf5 \strokec5 function\cf4 \strokec4  (\strokec10 name\strokec4 ) \{\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 info\strokec4  = \strokec10 invMap\strokec4 [\strokec10 name\strokec4 ];\cb1 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (!\strokec10 info\strokec4 ) \{\cb1 \
-\cb3       \strokec10 missing\strokec4 .\strokec10 push\strokec4 (\strokec10 name\strokec4 );\cb1 \
-\cb3       \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3     \}\cb1 \
-\cb3     \strokec10 payload\strokec4 .\strokec10 push\strokec4 ([\strokec10 name\strokec4 , \strokec10 info\strokec4 .\strokec10 locations\strokec4 .\strokec10 join\strokec4 (\cf7 \strokec7 ","\cf4 \strokec4 ), \strokec10 info\strokec4 .\strokec10 qty\strokec4 ]);\cb1 \
-\cb3   \});\cb1 \
-\
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 payload\strokec4 .\strokec10 length\strokec4  > \cf8 \strokec8 0\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 sendStartPayloadToServer\strokec4 (\strokec10 payload\strokec4 );\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A7"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "COUNT MENU"\cf4 \strokec4 );\cb1 \
-\
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 missing\strokec4 .\strokec10 length\strokec4  > \cf8 \strokec8 0\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cb1 \
-\cb3       \cf7 \strokec7 "These items from "\cf4 \strokec4  + \strokec10 targetLabel\strokec4  + \cf7 \strokec7 " were not found in Inventory and were skipped:\\n"\cf4 \strokec4  +\cb1 \
-\cb3       \strokec10 missing\strokec4 .\strokec10 join\strokec4 (\cf7 \strokec7 ", "\cf4 \strokec4 )\cb1 \
-\cb3     );\cb1 \
-\cb3   \}\cb1 \
-\cb3 \}\cb1 \
-\
-\cf2 \cb3 \strokec2 /**\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * Sends the day's items to the external counting server as a JSON array of\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * [item, "loc1,loc2,...", quantity] entries. Requires a Script Property\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * named "YOUR_API_KEY" (Project Settings > Script Properties).\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 sendStartPayloadToServer\strokec4 (\strokec10 payload\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 ui\strokec4  = \cf6 \strokec6 SpreadsheetApp\cf4 \strokec4 .\strokec10 getUi\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 props\strokec4  = \cf6 \strokec6 PropertiesService\cf4 \strokec4 .\strokec10 getScriptProperties\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 apiKey\strokec4  = \strokec10 props\strokec4 .\strokec10 getProperty\strokec4 (\cf7 \strokec7 "YOUR_API_KEY"\cf4 \strokec4 );\cb1 \
-\
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (!\strokec10 apiKey\strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 'Script property "YOUR_API_KEY" is not set. Go to Project Settings > Script Properties to add it.'\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 url\strokec4  = \cf6 \strokec6 SERVER_BASE_URL\cf4 \strokec4  + \cf6 \strokec6 SERVER_START_ENDPOINT\cf4 \strokec4 ;\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 options\strokec4  = \{\cb1 \
-\cb3     \strokec10 method\strokec4 : \cf7 \strokec7 "post"\cf4 \strokec4 ,\cb1 \
-\cb3     \strokec10 contentType\strokec4 : \cf7 \strokec7 "application/json"\cf4 \strokec4 ,\cb1 \
-\cb3     \strokec10 headers\strokec4 : \{ \cf7 \strokec7 "x-api-key"\cf4 \strokec4 : \strokec10 apiKey\strokec4  \},\cb1 \
-\cb3     \strokec10 payload\strokec4 : \cf6 \strokec6 JSON\cf4 \strokec4 .\strokec10 stringify\strokec4 (\strokec10 payload\strokec4 ),\cb1 \
-\cb3     \strokec10 muteHttpExceptions\strokec4 : \cf5 \strokec5 true\cf4 \cb1 \strokec4 \
-\cb3   \};\cb1 \
-\
-\cb3   \cf5 \strokec5 try\cf4 \strokec4  \{\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 response\strokec4  = \cf6 \strokec6 UrlFetchApp\cf4 \strokec4 .\strokec10 fetch\strokec4 (\strokec10 url\strokec4 , \strokec10 options\strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 code\strokec4  = \strokec10 response\strokec4 .\strokec10 getResponseCode\strokec4 ();\cb1 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 code\strokec4  < \cf8 \strokec8 200\cf4 \strokec4  || \strokec10 code\strokec4  >= \cf8 \strokec8 300\cf4 \strokec4 ) \{\cb1 \
-\cb3       \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 "Server returned an error ("\cf4 \strokec4  + \strokec10 code\strokec4  + \cf7 \strokec7 "):\\n"\cf4 \strokec4  + \strokec10 response\strokec4 .\strokec10 getContentText\strokec4 ());\cb1 \
-\cb3     \}\cb1 \
-\cb3   \} \cf5 \strokec5 catch\cf4 \strokec4  (\strokec10 err\strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 "Failed to reach the server: "\cf4 \strokec4  + \strokec10 err\strokec4 .\strokec10 message\strokec4 );\cb1 \
-\cb3   \}\cb1 \
-\cb3 \}\cb1 \
-\
-\cf2 \cb3 \strokec2 /**\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * COMPLETE: scans Count sheet for discrepancy/note rows, appends them to the\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * permanent Records log table (row 11+), then marks row 6 with today's date\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * for the selected day (replacing "Started").\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 runCountComplete\strokec4 (\strokec10 recordsSheet\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 ui\strokec4  = \cf6 \strokec6 SpreadsheetApp\cf4 \strokec4 .\strokec10 getUi\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 ss\strokec4  = \strokec10 recordsSheet\strokec4 .\strokec10 getParent\strokec4 ();\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 cycleName\strokec4  = \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 RECORDS_CYCLE_NAME_CELL\cf4 \strokec4 ).\strokec10 getValue\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 dayValue\strokec4  = \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 RECORDS_DAY_CELL\cf4 \strokec4 ).\strokec10 getValue\strokec4 ();\cb1 \
-\
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 dayValue\strokec4  === \cf7 \strokec7 "SELECT"\cf4 \strokec4  || \strokec10 dayValue\strokec4  === \cf7 \strokec7 ""\cf4 \strokec4  || \strokec10 dayValue\strokec4  === \cf5 \strokec5 null\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 "Please select a day in "\cf4 \strokec4  + \cf6 \strokec6 RECORDS_DAY_CELL\cf4 \strokec4  + \cf7 \strokec7 " before completing."\cf4 \strokec4 );\cb1 \
-\cb3     \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A7"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "COUNT MENU"\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 countSheet\strokec4  = \strokec10 ss\strokec4 .\strokec10 getSheetByName\strokec4 (\cf6 \strokec6 COUNT_SHEET_NAME\cf4 \strokec4 );\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (!\strokec10 countSheet\strokec4 ) \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 'Sheet "'\cf4 \strokec4  + \cf6 \strokec6 COUNT_SHEET_NAME\cf4 \strokec4  + \cf7 \strokec7 '" not found.'\cf4 \strokec4 );\cb1 \
-\cb3     \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A7"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "COUNT MENU"\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 logs\strokec4  = \strokec10 collectCountLogs\strokec4 (\strokec10 countSheet\strokec4 );\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 todayStr\strokec4  = \cf6 \strokec6 Utilities\cf4 \strokec4 .\strokec10 formatDate\strokec4 (\cf5 \strokec5 new\cf4 \strokec4  \cf6 \strokec6 Date\cf4 \strokec4 (), \cf6 \strokec6 TIMEZONE\cf4 \strokec4 , \cf6 \strokec6 DATE_FORMAT\cf4 \strokec4 );\cb1 \
-\
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 logs\strokec4 .\strokec10 length\strokec4  > \cf8 \strokec8 0\cf4 \strokec4 ) \{\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 output\strokec4  = \strokec10 logs\strokec4 .\strokec10 map\strokec4 (\cf5 \strokec5 function\cf4 \strokec4  (\strokec10 log\strokec4 ) \{\cb1 \
-\cb3       \cf5 \strokec5 return\cf4 \strokec4  [\strokec10 cycleName\strokec4 , \strokec10 dayValue\strokec4 , \strokec10 todayStr\strokec4 , \strokec10 log\strokec4 .\strokec10 itemName\strokec4 , \strokec10 log\strokec4 .\strokec10 total\strokec4 , \strokec10 log\strokec4 .\strokec10 qty\strokec4 , \strokec10 log\strokec4 .\strokec10 diff\strokec4 , \strokec10 log\strokec4 .\strokec10 note\strokec4 ];\cb1 \
-\cb3     \});\cb1 \
-\
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 nextRow\strokec4  = \cf6 \strokec6 Math\cf4 \strokec4 .\strokec10 max\strokec4 (\strokec10 recordsSheet\strokec4 .\strokec10 getLastRow\strokec4 () + \cf8 \strokec8 1\cf4 \strokec4 , \cf6 \strokec6 LOG_START_ROW\cf4 \strokec4 );\cb1 \
-\cb3     \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\strokec10 nextRow\strokec4 , \cf6 \strokec6 LOG_START_COL\cf4 \strokec4 , \strokec10 output\strokec4 .\strokec10 length\strokec4 , \cf6 \strokec6 LOG_NUM_COLS\cf4 \strokec4 ).\strokec10 setValues\strokec4 (\strokec10 output\strokec4 );\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf9 \strokec9 // Mark the day complete with today's date, regardless of whether any log rows were added\cf4 \cb1 \strokec4 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 dayCol\strokec4  = \strokec10 findDayColumn\strokec4 (\strokec10 recordsSheet\strokec4 , \strokec10 dayValue\strokec4 );\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 dayCol\strokec4  !== -\cf8 \strokec8 1\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 RECORDS_STATUS_ROW\cf4 \strokec4 , \strokec10 dayCol\strokec4 ).\strokec10 setValue\strokec4 (\strokec10 todayStr\strokec4 );\cb1 \
-\cb3   \} \cf5 \strokec5 else\cf4 \strokec4  \{\cb1 \
-\cb3     \strokec10 ui\strokec4 .\strokec10 alert\strokec4 (\cf7 \strokec7 'Could not find column for "'\cf4 \strokec4  + \strokec10 dayValue\strokec4  + \cf7 \strokec7 '" in row '\cf4 \strokec4  + \cf6 \strokec6 RECORDS_DAY_ROW\cf4 \strokec4  + \cf7 \strokec7 '.'\cf4 \strokec4 );\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \strokec10 recordsSheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A7"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "COUNT MENU"\cf4 \strokec4 );\cb1 \
-\cb3 \}\cb1 \
-\
-\cf2 \cb3 \strokec2 /**\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * Reads Count sheet item rows and returns only those needing a log entry:\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * Total (col G) is a number AND doesn't equal Quantity (col H), OR Note (col J) is non-empty.\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * Rows where Total hasn't been filled in yet (blank) are treated as "not yet counted"\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * and are skipped unless a Note is present.\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 collectCountLogs\strokec4 (\strokec10 countSheet\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 lastRow\strokec4  = \strokec10 countSheet\strokec4 .\strokec10 getLastRow\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 logs\strokec4  = [];\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 lastRow\strokec4  < \cf6 \strokec6 COUNT_START_ROW\cf4 \strokec4 ) \cf5 \strokec5 return\cf4 \strokec4  \strokec10 logs\strokec4 ;\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 data\strokec4  = \strokec10 countSheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 COUNT_START_ROW\cf4 \strokec4 , \cf8 \strokec8 1\cf4 \strokec4 , \strokec10 lastRow\strokec4  - \cf6 \strokec6 COUNT_START_ROW\cf4 \strokec4  + \cf8 \strokec8 1\cf4 \strokec4 , \cf6 \strokec6 COUNT_READ_COLS\cf4 \strokec4 ).\strokec10 getValues\strokec4 (); \cf9 \strokec9 // A:J\cf4 \cb1 \strokec4 \
-\cb3   \strokec10 data\strokec4 .\strokec10 forEach\strokec4 (\cf5 \strokec5 function\cf4 \strokec4  (\strokec10 row\strokec4 ) \{\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 itemName\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 1\cf4 \strokec4 ]; \cf9 \strokec9 // col B\cf4 \cb1 \strokec4 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 itemName\strokec4  === \cf7 \strokec7 ""\cf4 \strokec4  || \strokec10 itemName\strokec4  === \cf5 \strokec5 null\cf4 \strokec4 ) \cf5 \strokec5 return\cf4 \strokec4 ; \cf9 \strokec9 // not an item row (e.g. a location-only row)\cf4 \cb1 \strokec4 \
-\
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 total\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 6\cf4 \strokec4 ]; \cf9 \strokec9 // col G\cf4 \cb1 \strokec4 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 qty\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 7\cf4 \strokec4 ];   \cf9 \strokec9 // col H\cf4 \cb1 \strokec4 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 diff\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 8\cf4 \strokec4 ];  \cf9 \strokec9 // col I\cf4 \cb1 \strokec4 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 note\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 9\cf4 \strokec4 ];  \cf9 \strokec9 // col J\cf4 \cb1 \strokec4 \
-\
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 noteHasValue\strokec4  = (\strokec10 note\strokec4  !== \cf7 \strokec7 ""\cf4 \strokec4  && \strokec10 note\strokec4  !== \cf5 \strokec5 null\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 totalIsNumber\strokec4  = (\cf5 \strokec5 typeof\cf4 \strokec4  \strokec10 total\strokec4  === \cf7 \strokec7 "number"\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 totalMismatch\strokec4  = \strokec10 totalIsNumber\strokec4  && \strokec10 total\strokec4  !== \strokec10 qty\strokec4 ;\cb1 \
-\
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 totalMismatch\strokec4  || \strokec10 noteHasValue\strokec4 ) \{\cb1 \
-\cb3       \strokec10 logs\strokec4 .\strokec10 push\strokec4 (\{ \strokec10 itemName\strokec4 : \strokec10 itemName\strokec4 , \strokec10 total\strokec4 : \strokec10 total\strokec4 , \strokec10 qty\strokec4 : \strokec10 qty\strokec4 , \strokec10 diff\strokec4 : \strokec10 diff\strokec4 , \strokec10 note\strokec4 : \strokec10 note\strokec4  \});\cb1 \
-\cb3     \}\cb1 \
-\cb3   \});\cb1 \
-\cb3   \cf5 \strokec5 return\cf4 \strokec4  \strokec10 logs\strokec4 ;\cb1 \
-\cb3 \}\cb1 \
-\
-\cf2 \cb3 \strokec2 /** Returns the list of item names under a given "Calibrate Day N" header in Calibrate Cycle */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 getItemsForDay\strokec4 (\strokec10 calSheet\strokec4 , \strokec10 targetLabel\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 lastRow\strokec4  = \strokec10 calSheet\strokec4 .\strokec10 getLastRow\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 items\strokec4  = [];\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 lastRow\strokec4  < \cf6 \strokec6 START_ROW\cf4 \strokec4 ) \cf5 \strokec5 return\cf4 \strokec4  \strokec10 items\strokec4 ;\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 data\strokec4  = \strokec10 calSheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 START_ROW\cf4 \strokec4 , \cf8 \strokec8 1\cf4 \strokec4 , \strokec10 lastRow\strokec4  - \cf6 \strokec6 START_ROW\cf4 \strokec4  + \cf8 \strokec8 1\cf4 \strokec4 , \cf8 \strokec8 2\cf4 \strokec4 ).\strokec10 getValues\strokec4 (); \cf9 \strokec9 // A:B\cf4 \cb1 \strokec4 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 collecting\strokec4  = \cf5 \strokec5 false\cf4 \strokec4 ;\cb1 \
-\
-\cb3   \cf5 \strokec5 for\cf4 \strokec4  (\cf5 \strokec5 var\cf4 \strokec4  \strokec10 i\strokec4  = \cf8 \strokec8 0\cf4 \strokec4 ; \strokec10 i\strokec4  < \strokec10 data\strokec4 .\strokec10 length\strokec4 ; \strokec10 i\strokec4 ++) \{\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 colA\strokec4  = \strokec10 data\strokec4 [\strokec10 i\strokec4 ][\cf8 \strokec8 0\cf4 \strokec4 ];\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 colB\strokec4  = \strokec10 data\strokec4 [\strokec10 i\strokec4 ][\cf8 \strokec8 1\cf4 \strokec4 ];\cb1 \
-\
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 colA\strokec4  !== \cf7 \strokec7 ""\cf4 \strokec4  && \strokec10 colA\strokec4  !== \cf5 \strokec5 null\cf4 \strokec4 ) \{\cb1 \
-\cb3       \strokec10 collecting\strokec4  = (\strokec10 colA\strokec4  === \strokec10 targetLabel\strokec4 );\cb1 \
-\cb3       \cf5 \strokec5 continue\cf4 \strokec4 ; \cf9 \strokec9 // header row itself has no item\cf4 \cb1 \strokec4 \
-\cb3     \}\cb1 \
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 collecting\strokec4  && \strokec10 colB\strokec4  !== \cf7 \strokec7 ""\cf4 \strokec4  && \strokec10 colB\strokec4  !== \cf5 \strokec5 null\cf4 \strokec4 ) \{\cb1 \
-\cb3       \strokec10 items\strokec4 .\strokec10 push\strokec4 (\strokec10 colB\strokec4 );\cb1 \
-\cb3     \}\cb1 \
-\cb3   \}\cb1 \
-\cb3   \cf5 \strokec5 return\cf4 \strokec4  \strokec10 items\strokec4 ;\cb1 \
-\cb3 \}\cb1 \
-\
-\cf2 \cb3 \strokec2 /**\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * COUNT: computes per-detail-row totals (multiply/add/subtract) and rolls\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  * them up into each item row's Total and Difference.\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 runCountCalculations\strokec4 (\strokec10 countSheet\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 lastRow\strokec4  = \strokec10 countSheet\strokec4 .\strokec10 getLastRow\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 lastRow\strokec4  < \cf6 \strokec6 COUNT_START_ROW\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 countSheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A1"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "MENU"\cf4 \strokec4 );\cb1 \
-\cb3     \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \}\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 numRows\strokec4  = \strokec10 lastRow\strokec4  - \cf6 \strokec6 COUNT_START_ROW\cf4 \strokec4  + \cf8 \strokec8 1\cf4 \strokec4 ;\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 range\strokec4  = \strokec10 countSheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 COUNT_START_ROW\cf4 \strokec4 , \cf8 \strokec8 1\cf4 \strokec4 , \strokec10 numRows\strokec4 , \cf6 \strokec6 COUNT_CALC_COLS\cf4 \strokec4 ); \cf9 \strokec9 // A:I\cf4 \cb1 \strokec4 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 values\strokec4  = \strokec10 range\strokec4 .\strokec10 getValues\strokec4 ();\cb1 \
-\
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 itemRowIdx\strokec4  = -\cf8 \strokec8 1\cf4 \strokec4 ;\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 itemSum\strokec4  = \cf8 \strokec8 0\cf4 \strokec4 ;\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 itemRowIndices\strokec4  = [];\cb1 \
-\
-\cb3   \cf5 \strokec5 for\cf4 \strokec4  (\cf5 \strokec5 var\cf4 \strokec4  \strokec10 i\strokec4  = \cf8 \strokec8 0\cf4 \strokec4 ; \strokec10 i\strokec4  < \strokec10 values\strokec4 .\strokec10 length\strokec4 ; \strokec10 i\strokec4 ++) \{\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 row\strokec4  = \strokec10 values\strokec4 [\strokec10 i\strokec4 ];\cb1 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 itemName\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 1\cf4 \strokec4 ]; \cf9 \strokec9 // col B\cf4 \cb1 \strokec4 \
-\cb3     \cf5 \strokec5 var\cf4 \strokec4  \strokec10 isItemRow\strokec4  = (\strokec10 itemName\strokec4  !== \cf7 \strokec7 ""\cf4 \strokec4  && \strokec10 itemName\strokec4  !== \cf5 \strokec5 null\cf4 \strokec4 );\cb1 \
-\
-\cb3     \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 isItemRow\strokec4 ) \{\cb1 \
-\cb3       \strokec10 itemRowIndices\strokec4 .\strokec10 push\strokec4 (\strokec10 i\strokec4 );\cb1 \
-\cb3       \strokec10 finalizeItemRow\strokec4 (\strokec10 values\strokec4 , \strokec10 itemRowIdx\strokec4 , \strokec10 itemSum\strokec4 );\cb1 \
-\cb3       \strokec10 itemRowIdx\strokec4  = \strokec10 i\strokec4 ;\cb1 \
-\cb3       \strokec10 itemSum\strokec4  = \cf8 \strokec8 0\cf4 \strokec4 ;\cb1 \
-\cb3     \} \cf5 \strokec5 else\cf4 \strokec4  \{\cb1 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 x\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 2\cf4 \strokec4 ];   \cf9 \strokec9 // col C\cf4 \cb1 \strokec4 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 y\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 3\cf4 \strokec4 ];   \cf9 \strokec9 // col D\cf4 \cb1 \strokec4 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 add\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 4\cf4 \strokec4 ]; \cf9 \strokec9 // col E\cf4 \cb1 \strokec4 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 sub\strokec4  = \strokec10 row\strokec4 [\cf8 \strokec8 5\cf4 \strokec4 ]; \cf9 \strokec9 // col F\cf4 \cb1 \strokec4 \
-\
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 hasX\strokec4  = (\cf5 \strokec5 typeof\cf4 \strokec4  \strokec10 x\strokec4  === \cf7 \strokec7 "number"\cf4 \strokec4 );\cb1 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 hasY\strokec4  = (\cf5 \strokec5 typeof\cf4 \strokec4  \strokec10 y\strokec4  === \cf7 \strokec7 "number"\cf4 \strokec4 );\cb1 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 hasAdd\strokec4  = (\cf5 \strokec5 typeof\cf4 \strokec4  \strokec10 add\strokec4  === \cf7 \strokec7 "number"\cf4 \strokec4 );\cb1 \
-\cb3       \cf5 \strokec5 var\cf4 \strokec4  \strokec10 hasSub\strokec4  = (\cf5 \strokec5 typeof\cf4 \strokec4  \strokec10 sub\strokec4  === \cf7 \strokec7 "number"\cf4 \strokec4 );\cb1 \
-\
-\cb3       \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 hasX\strokec4  || \strokec10 hasY\strokec4  || \strokec10 hasAdd\strokec4  || \strokec10 hasSub\strokec4 ) \{\cb1 \
-\cb3         \cf5 \strokec5 var\cf4 \strokec4  \strokec10 multTerm\strokec4  = \cf8 \strokec8 0\cf4 \strokec4 ;\cb1 \
-\cb3         \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 hasX\strokec4  || \strokec10 hasY\strokec4 ) \{\cb1 \
-\cb3           \cf5 \strokec5 var\cf4 \strokec4  \strokec10 xv\strokec4  = \strokec10 hasX\strokec4  ? \strokec10 x\strokec4  : \cf8 \strokec8 1\cf4 \strokec4 ;\cb1 \
-\cb3           \cf5 \strokec5 var\cf4 \strokec4  \strokec10 yv\strokec4  = \strokec10 hasY\strokec4  ? \strokec10 y\strokec4  : \cf8 \strokec8 1\cf4 \strokec4 ;\cb1 \
-\cb3           \strokec10 multTerm\strokec4  = \strokec10 xv\strokec4  * \strokec10 yv\strokec4 ;\cb1 \
-\cb3         \}\cb1 \
-\cb3         \cf5 \strokec5 var\cf4 \strokec4  \strokec10 addTerm\strokec4  = \strokec10 hasAdd\strokec4  ? \strokec10 add\strokec4  : \cf8 \strokec8 0\cf4 \strokec4 ;\cb1 \
-\cb3         \cf5 \strokec5 var\cf4 \strokec4  \strokec10 subTerm\strokec4  = \strokec10 hasSub\strokec4  ? \strokec10 sub\strokec4  : \cf8 \strokec8 0\cf4 \strokec4 ;\cb1 \
-\
-\cb3         \cf5 \strokec5 var\cf4 \strokec4  \strokec10 rowTotal\strokec4  = \strokec10 multTerm\strokec4  + \strokec10 addTerm\strokec4  - \strokec10 subTerm\strokec4 ;\cb1 \
-\cb3         \strokec10 values\strokec4 [\strokec10 i\strokec4 ][\cf8 \strokec8 6\cf4 \strokec4 ] = \strokec10 rowTotal\strokec4 ; \cf9 \strokec9 // col G\cf4 \cb1 \strokec4 \
-\cb3         \strokec10 itemSum\strokec4  += \strokec10 rowTotal\strokec4 ;\cb1 \
-\cb3       \}\cb1 \
-\cb3       \cf9 \strokec9 // else: all four inputs blank -> leave col G blank, contribute 0 to itemSum\cf4 \cb1 \strokec4 \
-\cb3     \}\cb1 \
-\cb3   \}\cb1 \
-\cb3   \cf9 \strokec9 // Close out the last item block\cf4 \cb1 \strokec4 \
-\cb3   \strokec10 finalizeItemRow\strokec4 (\strokec10 values\strokec4 , \strokec10 itemRowIdx\strokec4 , \strokec10 itemSum\strokec4 );\cb1 \
-\
-\cb3   \strokec10 range\strokec4 .\strokec10 setValues\strokec4 (\strokec10 values\strokec4 );\cb1 \
-\cb3   \strokec10 applyCountFormatting\strokec4 (\strokec10 countSheet\strokec4 , \cf6 \strokec6 COUNT_START_ROW\cf4 \strokec4 , \strokec10 numRows\strokec4 , \strokec10 itemRowIndices\strokec4 );\cb1 \
-\cb3   \strokec10 countSheet\strokec4 .\strokec10 getRange\strokec4 (\cf7 \strokec7 "A1"\cf4 \strokec4 ).\strokec10 setValue\strokec4 (\cf7 \strokec7 "MENU"\cf4 \strokec4 );\cb1 \
-\cb3 \}\cb1 \
-\
-\cf2 \cb3 \strokec2 /** Colors the calc columns (C:D yellow, E green, F red, G blue) and highlights item rows fully gray. */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 applyCountFormatting\strokec4 (\strokec10 countSheet\strokec4 , \strokec10 startRow\strokec4 , \strokec10 numRows\strokec4 , \strokec10 itemRowIndices\strokec4 ) \{\cb1 \
-\cb3   \strokec10 countSheet\strokec4 .\strokec10 getRange\strokec4 (\strokec10 startRow\strokec4 , \cf8 \strokec8 3\cf4 \strokec4 , \strokec10 numRows\strokec4 , \cf8 \strokec8 2\cf4 \strokec4 ).\strokec10 setBackground\strokec4 (\cf6 \strokec6 COLOR_MULTIPLY\cf4 \strokec4 ); \cf9 \strokec9 // C:D\cf4 \cb1 \strokec4 \
-\cb3   \strokec10 countSheet\strokec4 .\strokec10 getRange\strokec4 (\strokec10 startRow\strokec4 , \cf8 \strokec8 5\cf4 \strokec4 , \strokec10 numRows\strokec4 , \cf8 \strokec8 1\cf4 \strokec4 ).\strokec10 setBackground\strokec4 (\cf6 \strokec6 COLOR_ADDITION\cf4 \strokec4 ); \cf9 \strokec9 // E\cf4 \cb1 \strokec4 \
-\cb3   \strokec10 countSheet\strokec4 .\strokec10 getRange\strokec4 (\strokec10 startRow\strokec4 , \cf8 \strokec8 6\cf4 \strokec4 , \strokec10 numRows\strokec4 , \cf8 \strokec8 1\cf4 \strokec4 ).\strokec10 setBackground\strokec4 (\cf6 \strokec6 COLOR_SUBTRACT\cf4 \strokec4 ); \cf9 \strokec9 // F\cf4 \cb1 \strokec4 \
-\cb3   \strokec10 countSheet\strokec4 .\strokec10 getRange\strokec4 (\strokec10 startRow\strokec4 , \cf8 \strokec8 7\cf4 \strokec4 , \strokec10 numRows\strokec4 , \cf8 \strokec8 1\cf4 \strokec4 ).\strokec10 setBackground\strokec4 (\cf6 \strokec6 COLOR_TOTAL\cf4 \strokec4 );    \cf9 \strokec9 // G\cf4 \cb1 \strokec4 \
-\
-\cb3   \strokec10 itemRowIndices\strokec4 .\strokec10 forEach\strokec4 (\cf5 \strokec5 function\cf4 \strokec4  (\strokec10 idx\strokec4 ) \{\cb1 \
-\cb3     \strokec10 countSheet\strokec4 .\strokec10 getRange\strokec4 (\strokec10 startRow\strokec4  + \strokec10 idx\strokec4 , \cf8 \strokec8 1\cf4 \strokec4 , \cf8 \strokec8 1\cf4 \strokec4 , \cf6 \strokec6 ITEM_ROW_FORMAT_COLS\cf4 \strokec4 ).\strokec10 setBackground\strokec4 (\cf6 \strokec6 COLOR_ITEM_ROW\cf4 \strokec4 );\cb1 \
-\cb3   \});\cb1 \
-\cb3 \}\cb1 \
-\
-\cf2 \cb3 \strokec2 /** Writes an item row's rolled-up Total (col G) and Difference (col I), if there is one to close out. */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 finalizeItemRow\strokec4 (\strokec10 values\strokec4 , \strokec10 itemRowIdx\strokec4 , \strokec10 itemSum\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 itemRowIdx\strokec4  === -\cf8 \strokec8 1\cf4 \strokec4 ) \cf5 \strokec5 return\cf4 \strokec4 ;\cb1 \
-\cb3   \strokec10 values\strokec4 [\strokec10 itemRowIdx\strokec4 ][\cf8 \strokec8 6\cf4 \strokec4 ] = \strokec10 itemSum\strokec4 ; \cf9 \strokec9 // col G = Total\cf4 \cb1 \strokec4 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 qty\strokec4  = \strokec10 values\strokec4 [\strokec10 itemRowIdx\strokec4 ][\cf8 \strokec8 7\cf4 \strokec4 ]; \cf9 \strokec9 // col H = Quantity\cf4 \cb1 \strokec4 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\cf5 \strokec5 typeof\cf4 \strokec4  \strokec10 qty\strokec4  === \cf7 \strokec7 "number"\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 values\strokec4 [\strokec10 itemRowIdx\strokec4 ][\cf8 \strokec8 8\cf4 \strokec4 ] = \strokec10 itemSum\strokec4  - \strokec10 qty\strokec4 ; \cf9 \strokec9 // col I = Difference\cf4 \cb1 \strokec4 \
-\cb3   \}\cb1 \
-\cb3 \}\cb1 \
-\
-\cf2 \cb3 \strokec2 /** Clears Count sheet from row 2 down (columns A:H). Not called automatically\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *  anymore since START sends data to the server instead of the Count sheet;\cf4 \cb1 \strokec4 \
-\cf2 \cb3 \strokec2  *  kept here in case you want to wire it to a manual menu action later. */\cf4 \cb1 \strokec4 \
-\cf5 \cb3 \strokec5 function\cf4 \strokec4  \strokec10 clearCountSheet\strokec4 (\strokec10 countSheet\strokec4 ) \{\cb1 \
-\cb3   \cf5 \strokec5 var\cf4 \strokec4  \strokec10 lastRow\strokec4  = \strokec10 countSheet\strokec4 .\strokec10 getMaxRows\strokec4 ();\cb1 \
-\cb3   \cf5 \strokec5 if\cf4 \strokec4  (\strokec10 lastRow\strokec4  >= \cf6 \strokec6 COUNT_START_ROW\cf4 \strokec4 ) \{\cb1 \
-\cb3     \strokec10 countSheet\strokec4 .\strokec10 getRange\strokec4 (\cf6 \strokec6 COUNT_START_ROW\cf4 \strokec4 , \cf8 \strokec8 1\cf4 \strokec4 , \strokec10 lastRow\strokec4  - \cf6 \strokec6 COUNT_START_ROW\cf4 \strokec4  + \cf8 \strokec8 1\cf4 \strokec4 , \cf6 \strokec6 COUNT_COLS\cf4 \strokec4 ).\strokec10 clearContent\strokec4 ();\cb1 \
-\cb3   \}\cb1 \
-\cb3 \}\cb1 \
+var CALIBRATE_SHEET_NAME = "Calibrate Cycle";
+var INVENTORY_SHEET_NAME = "Inventory";
+var RECORDS_SHEET_NAME   = "Records";
+var COUNT_SHEET_NAME     = "Count";
+
+var START_ROW = 11;      // Calibrate Cycle table starts here
+var CLEAR_COLS = 5;      // Calibrate Cycle table is columns A:E
+
+var RECORDS_DAY_ROW = 5;        // row where Day 1, Day 2... are written
+var RECORDS_STATUS_ROW = 6;     // row where "Started" / completion date go
+var RECORDS_DAY_START_COL = 1;  // column A
+var RECORDS_MAX_DAY_COLS = 60;  // generous width to clear on refresh
+var RECORDS_DAY_CELL = "B8";
+var RECORDS_CYCLE_NAME_CELL = "B2";
+
+// Records log table (row 11+, header pre-exists on row 10)
+var LOG_START_ROW = 11;
+var LOG_START_COL = 1;  // column A
+var LOG_NUM_COLS = 13;  // A:M
+var LOG_COL_SKU = 4;        // D
+var LOG_COL_BUTTONS = 13;   // M
+
+var COLOR_VIEW_GREEN = "#d9ead3"; // light green 3
+
+var TIMEZONE = "America/New_York";
+var DATE_FORMAT = "MM/dd/yyyy";
+
+// External counting server
+var SERVER_BASE_URL = "https://api.ancienthowl.net";
+var SERVER_START_ENDPOINT = "/count-inventory-start";
+var SERVER_COMPLETE_ENDPOINT = "/count-inventory-complete";
+
+function testSendToServer(){
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(RECORDS_SHEET_NAME);
+  runCountStart(sheet);
+}
+
+function onEditHandle(e) {
+  if (!e || !e.range) return;
+
+  var sheet = e.range.getSheet();
+  var sheetName = sheet.getName();
+
+  // ---------------- Calibrate Cycle sheet ----------------
+  if (sheetName === CALIBRATE_SHEET_NAME) {
+    if (e.range.getRow() !== 5 || e.range.getColumn() !== 1) return;
+    if (e.range.getNumRows() !== 1 || e.range.getNumColumns() !== 1) return;
+
+    var action = e.range.getValue();
+    if (action === "Clear") {
+      clearCalibrateTable(sheet);
+    } else if (action === "Calibrate") {
+      runCalibrate(sheet);
+    } else if (action === "Refresh") {
+      refreshCalibrateQuantities(sheet);
+    }
+    return;
+  }
+
+  // ------------------- Records sheet ----------------------
+  if (sheetName === RECORDS_SHEET_NAME) {
+    if (e.range.getNumRows() !== 1 || e.range.getNumColumns() !== 1) return;
+
+    var row = e.range.getRow();
+    var col = e.range.getColumn();
+
+    // CYCLE MENU (A3)
+    if (row === 3 && col === 1) {
+      var cycleAction = e.range.getValue();
+      if (cycleAction === "NEW CYCLE") {
+        runNewCycle(sheet);
+      }
+      return;
+    }
+
+    // COUNT MENU (A7)
+    if (row === 7 && col === 1) {
+      var countAction = e.range.getValue();
+      if (countAction === "START") {
+        runCountStart(sheet);
+      } else if (countAction === "COMPLETE") {
+        runCountComplete(sheet);
+      }
+      return;
+    }
+
+    // Log table Buttons column (col M, row 11+)
+    if (row >= LOG_START_ROW && col === LOG_COL_BUTTONS) {
+      handleButtonsEdit(sheet, e.range);
+      return;
+    }
+  }
+}
+
+/* ============================================================
+ *                     CALIBRATE CYCLE LOGIC
+ * ============================================================ */
+
+/** Clears row 11+ and resets the dropdown to MENU */
+function clearCalibrateTable(sheet) {
+  var lastRow = sheet.getMaxRows();
+  if (lastRow >= START_ROW) {
+    sheet.getRange(START_ROW, 1, lastRow - START_ROW + 1, CLEAR_COLS).clearContent();
+  }
+  sheet.getRange("A5").setValue("MENU");
+}
+
+/** Reads Inventory, balances items across N days, writes the table */
+function runCalibrate(sheet) {
+  var ui = SpreadsheetApp.getUi();
+  var ss = sheet.getParent();
+  var invSheet = ss.getSheetByName(INVENTORY_SHEET_NAME);
+
+  if (!invSheet) {
+    ui.alert('Sheet "' + INVENTORY_SHEET_NAME + '" not found.');
+    sheet.getRange("A5").setValue("MENU");
+    return;
+  }
+
+  var daysRaw = sheet.getRange("B3").getValue();
+  var days = parseInt(daysRaw, 10);
+  if (isNaN(days) || days < 1) {
+    ui.alert("Please enter a valid number of days (1 or more) in B3.");
+    sheet.getRange("A5").setValue("MENU");
+    return;
+  }
+
+  var lastRow = invSheet.getLastRow();
+  if (lastRow < 1) {
+    clearCalibrateTable(sheet);
+    return;
+  }
+  var data = invSheet.getRange(1, 2, lastRow, 3).getValues(); // B:D -> [name, locations(unused), qty]
+
+  var items = [];
+  data.forEach(function (row) {
+    var name = row[0];
+    var qty = row[2];
+    if (name !== "" && name !== null && typeof qty === "number" && qty > 0) {
+      items.push({ name: name, qty: qty });
+    }
+  });
+
+  clearCalibrateTable(sheet);
+
+  if (items.length === 0) {
+    ui.alert("No items with quantity greater than 0 were found in Inventory.");
+    return;
+  }
+
+  items.sort(function (a, b) { return b.qty - a.qty; });
+
+  var numDays = Math.min(days, items.length);
+  var dayTotals = new Array(numDays).fill(0);
+  var dayItems = [];
+  for (var i = 0; i < numDays; i++) dayItems.push([]);
+
+  items.forEach(function (item) {
+    var minIdx = 0;
+    for (var i = 1; i < numDays; i++) {
+      if (dayTotals[i] < dayTotals[minIdx]) minIdx = i;
+    }
+    dayItems[minIdx].push(item);
+    dayTotals[minIdx] += item.qty;
+  });
+
+  var output = [];
+  var dayCounter = 1;
+  for (var d = 0; d < numDays; d++) {
+    if (dayItems[d].length === 0) continue;
+    output.push(["Calibrate Day " + dayCounter, "", "", "Total:", dayTotals[d]]);
+    dayItems[d].forEach(function (item) {
+      output.push(["", item.name, item.qty, "", ""]);
+    });
+    dayCounter++;
+  }
+
+  if (output.length > 0) {
+    sheet.getRange(START_ROW, 1, output.length, 5).setValues(output);
+  }
+
+  sheet.getRange("A5").setValue("MENU");
+}
+
+/**
+ * Re-pulls current quantities from Inventory for whatever items are
+ * already in the table (rows 11+), without changing which items exist
+ * or how they're grouped into days. Updates col C (item qty) and col E
+ * (day Total) only.
+ */
+function refreshCalibrateQuantities(sheet) {
+  var ui = SpreadsheetApp.getUi();
+  var ss = sheet.getParent();
+  var invSheet = ss.getSheetByName(INVENTORY_SHEET_NAME);
+
+  if (!invSheet) {
+    ui.alert('Sheet "' + INVENTORY_SHEET_NAME + '" not found.');
+    sheet.getRange("A5").setValue("MENU");
+    return;
+  }
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < START_ROW) {
+    sheet.getRange("A5").setValue("MENU");
+    return;
+  }
+
+  var invLastRow = invSheet.getLastRow();
+  var invMap = {};
+  if (invLastRow >= 1) {
+    var invData = invSheet.getRange(1, 2, invLastRow, 3).getValues(); // B:D
+    invData.forEach(function (row) {
+      var name = row[0];
+      var qty = row[2];
+      if (name !== "" && name !== null) {
+        invMap[name] = (typeof qty === "number") ? qty : 0;
+      }
+    });
+  }
+
+  var numRows = lastRow - START_ROW + 1;
+  var range = sheet.getRange(START_ROW, 1, numRows, 5); // A:E
+  var values = range.getValues();
+
+  var missingItems = [];
+  var headerIdx = -1;
+  var runningTotal = 0;
+
+  for (var i = 0; i < values.length; i++) {
+    var row = values[i];
+    var colA = row[0];
+    var colB = row[1];
+
+    if (colA !== "" && colA !== null) {
+      if (headerIdx !== -1) {
+        values[headerIdx][4] = runningTotal;
+      }
+      headerIdx = i;
+      runningTotal = 0;
+    } else if (colB !== "" && colB !== null) {
+      var newQty;
+      if (Object.prototype.hasOwnProperty.call(invMap, colB)) {
+        newQty = invMap[colB];
+      } else {
+        newQty = 0;
+        missingItems.push(colB);
+      }
+      values[i][2] = newQty;
+      runningTotal += newQty;
+    }
+  }
+  if (headerIdx !== -1) {
+    values[headerIdx][4] = runningTotal;
+  }
+
+  range.setValues(values);
+  sheet.getRange("A5").setValue("MENU");
+
+  if (missingItems.length > 0) {
+    ui.alert(
+      "These items in the table were not found in Inventory and were set to 0:\n" +
+      missingItems.join(", ")
+    );
+  }
+}
+
+/* ============================================================
+ *                         RECORDS LOGIC
+ * ============================================================ */
+
+/** NEW CYCLE: rebuilds the Day list (row 5), clears row 6, and the B8 dropdown */
+function runNewCycle(recordsSheet) {
+  var ui = SpreadsheetApp.getUi();
+  var ss = recordsSheet.getParent();
+  var calSheet = ss.getSheetByName(CALIBRATE_SHEET_NAME);
+
+  if (!calSheet) {
+    ui.alert('Sheet "' + CALIBRATE_SHEET_NAME + '" not found.');
+    recordsSheet.getRange("A3").setValue("CYCLE MENU");
+    return;
+  }
+
+  var lastRow = calSheet.getLastRow();
+  var dayCount = 0;
+  if (lastRow >= START_ROW) {
+    var colA = calSheet.getRange(START_ROW, 1, lastRow - START_ROW + 1, 1).getValues();
+    colA.forEach(function (row) {
+      var val = row[0];
+      if (val !== "" && val !== null && String(val).indexOf("Calibrate Day") === 0) {
+        dayCount++;
+      }
+    });
+  }
+
+  if (dayCount === 0) {
+    ui.alert('No "Calibrate Day" entries found in ' + CALIBRATE_SHEET_NAME + '.');
+    recordsSheet.getRange("A3").setValue("CYCLE MENU");
+    return;
+  }
+
+  // Clear old day labels (row 5) AND old status/date row (row 6)
+  recordsSheet.getRange(RECORDS_DAY_ROW, RECORDS_DAY_START_COL, 2, RECORDS_MAX_DAY_COLS).clearContent();
+
+  var dayLabels = [];
+  for (var d = 1; d <= dayCount; d++) dayLabels.push("Day " + d);
+
+  recordsSheet.getRange(RECORDS_DAY_ROW, RECORDS_DAY_START_COL, 1, dayLabels.length).setValues([dayLabels]);
+
+  // Rebuild B8 dropdown: SELECT + each day
+  var dropdownOptions = ["SELECT"].concat(dayLabels);
+  var rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(dropdownOptions, true)
+    .setAllowInvalid(false)
+    .build();
+
+  var b8 = recordsSheet.getRange(RECORDS_DAY_CELL);
+  b8.setDataValidation(rule);
+  b8.setValue("SELECT");
+
+  recordsSheet.getRange("A3").setValue("CYCLE MENU");
+}
+
+/** Finds the 1-based column in row 5 whose value matches dayLabel exactly. Returns -1 if not found. */
+function findDayColumn(recordsSheet, dayLabel) {
+  var rowVals = recordsSheet.getRange(RECORDS_DAY_ROW, RECORDS_DAY_START_COL, 1, RECORDS_MAX_DAY_COLS).getValues()[0];
+  for (var i = 0; i < rowVals.length; i++) {
+    if (rowVals[i] === dayLabel) return RECORDS_DAY_START_COL + i;
+  }
+  return -1;
+}
+
+/**
+ * Splits an Inventory location string into individual codes. Handles
+ * comma-separated, space-separated, or mixed comma+space delimiters by
+ * normalizing commas to spaces first, then splitting on whitespace.
+ * e.g. "A10,2B1, 11A" / "A10 2B1 11A" / "A10,2B1,11A" all -> ["A10","2B1","11A"]
+ */
+function parseLocationsString(raw) {
+  if (raw === "" || raw === null || raw === undefined) return [];
+  return String(raw)
+    .replace(/,/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(function (s) { return s !== ""; });
+}
+
+/** Extracts a leading integer from a location string; returns Infinity if none (sorts last). */
+function leadingLocationNumber(loc) {
+  var m = String(loc).match(/^\d+/);
+  return m ? parseInt(m[0], 10) : Infinity;
+}
+
+/** Sorts locations ascending by their leading number; ties broken alphabetically; no-leading-number locations sort last. */
+function sortLocations(locations) {
+  return locations.slice().sort(function (a, b) {
+    var na = leadingLocationNumber(a);
+    var nb = leadingLocationNumber(b);
+    if (na !== nb) return na - nb;
+    return String(a).localeCompare(String(b));
+  });
+}
+
+/**
+ * Makes an authenticated POST request to the counting server.
+ * Returns { ok: true, data } on success (data is the parsed JSON body, or
+ * null if the response was empty), or { ok: false, error } on failure.
+ */
+function callServer(endpointPath, bodyObj) {
+  var props = PropertiesService.getScriptProperties();
+  var apiKey = props.getProperty("YOUR_API_KEY");
+
+  if (!apiKey) {
+    return { ok: false, error: 'Script property "YOUR_API_KEY" is not set. Go to Project Settings > Script Properties to add it.' };
+  }
+
+  var url = SERVER_BASE_URL + endpointPath;
+  var options = {
+    method: "get",
+    contentType: "application/json",
+    headers: { "x-api-key": apiKey },
+    muteHttpExceptions: true
+  };
+  if(bodyObj){
+    options["payload"] = JSON.stringify(bodyObj);
+  }
+
+  try {
+    var response = UrlFetchApp.fetch(url, options);
+    var code = response.getResponseCode();
+    if (code < 200 || code >= 300) {
+      return { ok: false, error: "Server returned an error (" + code + "):\n" + response.getContentText() };
+    }
+    var text = response.getContentText();
+    if (!text) return { ok: true, data: null };
+    try {
+      return { ok: true, data: JSON.parse(text) };
+    } catch (parseErr) {
+      return { ok: false, error: "Could not parse server response as JSON: " + parseErr.message };
+    }
+  } catch (err) {
+    return { ok: false, error: "Failed to reach the server: " + err.message };
+  }
+}
+
+/** START: pulls the selected day's items from Calibrate Cycle + Inventory and sends them to the server */
+function runCountStart(recordsSheet) {
+  var ui = SpreadsheetApp.getUi();
+  var ss = recordsSheet.getParent();
+
+  var dayValue = recordsSheet.getRange(RECORDS_DAY_CELL).getValue();
+  if (dayValue === "SELECT" || dayValue === "" || dayValue === null) {
+    recordsSheet.getRange("A7").setValue("COUNT MENU");
+    return;
+  }
+
+  var match = String(dayValue).match(/\d+/);
+  if (!match) {
+    ui.alert('Invalid day value in ' + RECORDS_DAY_CELL + ': "' + dayValue + '"');
+    recordsSheet.getRange("A7").setValue("COUNT MENU");
+    return;
+  }
+  var targetLabel = "Calibrate Day " + match[0];
+
+  // Mark this day as started in row 6
+  var dayCol = findDayColumn(recordsSheet, dayValue);
+  if (dayCol !== -1) {
+    recordsSheet.getRange(RECORDS_STATUS_ROW, dayCol).setValue("Started");
+  }
+
+  var calSheet = ss.getSheetByName(CALIBRATE_SHEET_NAME);
+  if (!calSheet) {
+    ui.alert('Sheet "' + CALIBRATE_SHEET_NAME + '" not found.');
+    recordsSheet.getRange("A7").setValue("COUNT MENU");
+    return;
+  }
+
+  var itemNames = getItemsForDay(calSheet, targetLabel);
+  if (itemNames.length === 0) {
+    ui.alert('No items found for "' + targetLabel + '" in ' + CALIBRATE_SHEET_NAME + '.');
+    recordsSheet.getRange("A7").setValue("COUNT MENU");
+    return;
+  }
+
+  var invSheet = ss.getSheetByName(INVENTORY_SHEET_NAME);
+  if (!invSheet) {
+    ui.alert('Sheet "' + INVENTORY_SHEET_NAME + '" not found.');
+    recordsSheet.getRange("A7").setValue("COUNT MENU");
+    return;
+  }
+
+  var invLastRow = invSheet.getLastRow();
+  var invMap = {};
+  if (invLastRow >= 1) {
+    var invData = invSheet.getRange(1, 2, invLastRow, 3).getValues(); // B:D -> name, locations, qty
+    invData.forEach(function (row) {
+      var name = row[0];
+      var locs = row[1];
+      var qty = row[2];
+      if (name !== "" && name !== null) {
+        invMap[name] = {
+          qty: (typeof qty === "number") ? qty : 0,
+          locations: sortLocations(parseLocationsString(locs))
+        };
+      }
+    });
+  }
+
+  // Build payload: one [item, "loc1,loc2,...", quantity] entry per item
+  var payload = [];
+  var missing = [];
+
+  itemNames.forEach(function (name) {
+    var info = invMap[name];
+    if (!info) {
+      missing.push(name);
+      return;
+    }
+    payload.push([name, info.locations.join(","), info.qty]);
+  });
+
+  if (payload.length > 0) {
+    var result = callServer(SERVER_START_ENDPOINT, payload);
+    if (!result.ok) {
+      ui.alert(result.error);
+    }
+  }
+
+  recordsSheet.getRange("A7").setValue("COUNT MENU");
+
+  /*if (missing.length > 0) {
+    ui.alert(
+      "These items from " + targetLabel + " were not found in Inventory and were skipped:\n" +
+      missing.join(", ")
+    );
+  }*/
+}
+
+/**
+ * COMPLETE: pulls the day's counted results from the server and appends one
+ * log row per item to the Records log table (row 11+, never cleared), then
+ * marks row 6 with today's date for the selected day (replacing "Started").
+ */
+function runCountComplete(recordsSheet) {
+  var ui = SpreadsheetApp.getUi();
+
+  var cycleName = recordsSheet.getRange(RECORDS_CYCLE_NAME_CELL).getValue();
+  var dayValue = recordsSheet.getRange(RECORDS_DAY_CELL).getValue();
+
+  if (dayValue === "SELECT" || dayValue === "" || dayValue === null) {
+    ui.alert("Please select a day in " + RECORDS_DAY_CELL + " before completing.");
+    recordsSheet.getRange("A7").setValue("COUNT MENU");
+    return;
+  }
+
+  var result = callServer(SERVER_COMPLETE_ENDPOINT, null); // { cycleName: cycleName, cycleDay: dayValue }
+  if (!result.ok) {
+    ui.alert(result.error);
+    recordsSheet.getRange("A7").setValue("COUNT MENU");
+    return;
+  }
+
+  var items = result.data;
+  if (!Array.isArray(items)) {
+    ui.alert("Unexpected response from server: expected an array of items.");
+    recordsSheet.getRange("A7").setValue("COUNT MENU");
+    return;
+  }
+
+  var todayStr = Utilities.formatDate(new Date(), TIMEZONE, DATE_FORMAT);
+
+  let objser = ""; 
+  if (items.length > 0) {
+    var output = items.map(function (item) {
+      objser = item[8].replace(/\n/g, "}{");
+      return [
+        cycleName, dayValue, todayStr,
+        item[0].slice(1), // Sku (already includes "#")
+        item[1], // Counted / total_number
+        item[2], // Stock / expected_number
+        item[3], // Difference
+        item[4], // Note
+        item[5], // New
+        item[6], // Refurbished
+        item[7], // Locations
+        objser,  //item[8], // Object string
+        "options" // Buttons default
+      ];
+    });
+
+    var nextRow = Math.max(recordsSheet.getLastRow() + 1, LOG_START_ROW);
+    recordsSheet.getRange(nextRow, LOG_START_COL, output.length, LOG_NUM_COLS).setValues(output);
+
+    var buttonsRule = SpreadsheetApp.newDataValidation()
+      .requireValueInList(["options", "view"], true)
+      .setAllowInvalid(false)
+      .build();
+    recordsSheet.getRange(nextRow, LOG_COL_BUTTONS, output.length, 1).setDataValidation(buttonsRule);
+  }
+
+  // Mark the day complete with today's date, regardless of whether any rows were added
+  var dayCol = findDayColumn(recordsSheet, dayValue);
+  if (dayCol !== -1) {
+    recordsSheet.getRange(RECORDS_STATUS_ROW, dayCol).setValue(todayStr);
+  } else {
+    ui.alert('Could not find column for "' + dayValue + '" in row ' + RECORDS_DAY_ROW + '.');
+  }
+
+  recordsSheet.getRange("A7").setValue("COUNT MENU");
+}
+
+/** Returns the list of item names under a given "Calibrate Day N" header in Calibrate Cycle */
+function getItemsForDay(calSheet, targetLabel) {
+  var lastRow = calSheet.getLastRow();
+  var items = [];
+  if (lastRow < START_ROW) return items;
+
+  var data = calSheet.getRange(START_ROW, 1, lastRow - START_ROW + 1, 2).getValues(); // A:B
+  var collecting = false;
+
+  for (var i = 0; i < data.length; i++) {
+    var colA = data[i][0];
+    var colB = data[i][1];
+
+    if (colA !== "" && colA !== null) {
+      collecting = (colA === targetLabel);
+      continue; // header row itself has no item
+    }
+    if (collecting && colB !== "" && colB !== null) {
+      items.push(colB);
+    }
+  }
+  return items;
+}
+
+/**
+ * Handles an edit to a log row's Buttons cell (col M, row 11+).
+ * "view" -> highlight green + rebuild the Count sheet as a single-item view.
+ * "options" -> clear the highlight.
+ */
+function handleButtonsEdit(recordsSheet, cellRange) {
+  var value = cellRange.getValue();
+  var row = cellRange.getRow();
+
+  if (value === "view") {
+    //cellRange.setBackground(COLOR_VIEW_GREEN);
+
+    var rowValues = recordsSheet.getRange(row, LOG_COL_SKU, 1, 9).getValues()[0];
+    // D..L -> Sku, Counted, Stock, Difference, Note, New, Refurbished, Locations, Object
+    var sku = "#"+rowValues[0];
+    var counted = rowValues[1];
+    var stock = rowValues[2];
+    var difference = rowValues[3];
+    var note = rowValues[4];
+    var newTotal = rowValues[5];
+    var refurbTotal = rowValues[6];
+    var objectStr = rowValues[8];
+
+    var ss = recordsSheet.getParent();
+    var countSheet = ss.getSheetByName(COUNT_SHEET_NAME);
+    if (!countSheet) {
+      SpreadsheetApp.getUi().alert('Sheet "' + COUNT_SHEET_NAME + '" not found.');
+      return;
+    }
+
+    buildCountSheetView(countSheet, sku, counted, stock, difference, note, newTotal, refurbTotal, objectStr);
+  } else if (value === "options") {
+    cellRange.setBackground(null);
+  }
+}
+
+/* ============================================================
+ *                        COUNT SHEET (VIEW ONLY)
+ * ============================================================ */
+
+/**
+ * Parses an Object string (multiple "\n"-separated lines, each
+ * "item,location,newQty,refurbQty") into an array of detail rows.
+ * Blank numeric fields are returned as "" (not 0), so the caller can
+ * distinguish "not entered" from "entered as zero".
+ */
+function parseObjectString(objStr) {
+  var result = [];
+  if (!objStr) return result;
+
+  String(objStr).split("}{").forEach(function (line) {
+    if (line === "") return;
+    var parts = line.split(",");
+    var itemName = parts[0] !== undefined ? parts[0] : "";
+    var location = parts[1] !== undefined ? parts[1] : "";
+    var newRaw = parts[2] !== undefined ? parts[2] : "";
+    var refurbRaw = parts[3] !== undefined ? parts[3] : "";
+
+    var newVal = (newRaw !== "" && !isNaN(Number(newRaw))) ? Number(newRaw) : "";
+    var refurbVal = (refurbRaw !== "" && !isNaN(Number(refurbRaw))) ? Number(refurbRaw) : "";
+
+    result.push({ itemName: itemName, location: location, newVal: newVal, refurbVal: refurbVal });
+  });
+
+  return result;
+}
+
+/**
+ * Clears the Count sheet entirely and rebuilds it as a single-item view:
+ * a header row, a summary row for the item, and one row per location
+ * (parsed from the Object string). Each location row's Total is New +
+ * Refurbished (blank if both are blank), matching the Count_Table_Ex format.
+ */
+function buildCountSheetView(countSheet, sku, counted, stock, difference, note, newTotal, refurbTotal, objectStr) {
+  countSheet.clear();
+
+  var header = ["Item", "Location", "New", "Refurbished", "Total", "Expected", "Difference", "Note"];
+  var rows = [header];
+
+  rows.push([
+    sku, "",
+    (newTotal === "" || newTotal === null) ? "" : newTotal,
+    (refurbTotal === "" || refurbTotal === null) ? "" : refurbTotal,
+    (counted === "" || counted === null) ? "" : counted,
+    (stock === "" || stock === null) ? "" : stock,
+    (difference === "" || difference === null) ? "" : difference,
+    note || ""
+  ]);
+
+  var detailRows = parseObjectString(objectStr);
+  detailRows.forEach(function (d) {
+    var total = "";
+    if (d.newVal !== "" || d.refurbVal !== "") {
+      total = (d.newVal === "" ? 0 : d.newVal) + (d.refurbVal === "" ? 0 : d.refurbVal);
+    }
+    rows.push([d.itemName, d.location, d.newVal, d.refurbVal, total, "", "", ""]);
+  });
+
+  var numRows = rows.length;
+  var numCols = header.length;
+
+  // Force the Location column to plain text so mixed alphanumeric codes
+  // (e.g. "01A08" alongside "3") are preserved exactly as given.
+  countSheet.getRange(1, 2, numRows, 1).setNumberFormat("@");
+
+  countSheet.getRange(1, 1, numRows, numCols).setValues(rows);
+  countSheet.getRange(1, 1, 1, numCols).setFontWeight("bold");
+
+  var sheet = countSheet;
+  // After building/writing the table
+  const lastRow = sheet.getLastRow();
+  const lastColumn = sheet.getLastColumn();
+  // Row 2: light gray, first through last column
+  sheet.getRange(2, 1, 1, lastColumn).setBackground('#d9d9d9');
+
+  // Column 3 (C): light green, rows 3 through last row
+  if (lastRow >= 3) {
+    sheet.getRange(3, 3, lastRow - 2, 1).setBackground('#d9ead3');
+  }
+
+  // Column 4 (D): light yellow, rows 3 through last row
+  if (lastRow >= 3) {
+    sheet.getRange(3, 4, lastRow - 2, 1).setBackground('#fff2cc');
+  }
+
+  // Column 5 — light blue
+  if (lastRow >= 3) {
+    sheet.getRange(3, 5, lastRow - 2, 1).setBackground('#cfe2f3');
+  }
+
 }
