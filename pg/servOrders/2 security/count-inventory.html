@@ -21,6 +21,14 @@
     margin: 10px 28px;
   }
 
+  .flex-this-ai-fs {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 10px 28px;
+  }
+
   .data-input {
     padding: 6px 10px;
     border: 1.5px solid var(--border);
@@ -83,8 +91,20 @@
   .sectionB .panel { min-height: 300px; }
   .sectionB > div > div { display: flex; flex-direction: column; gap: 6px; }
 
-  .sectionC { flex: 1; min-width: 0; }
-  .sectionC .panel { padding: 14px 16px 18px; }
+  .cSectionsWrap {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex: 1;
+    min-width: 0;
+  }
+  .sectionC, .sectionD { flex: 1; min-width: 0; margin: 0; }
+  .sectionD .panel { padding: 14px 16px 18px; }
+
+  .col-d-name       { flex: 1.2; font-weight: 500; }
+  .col-d-locations  { flex: 2; color: var(--text-2); }
+  .col-d-expected   { flex: 0.8; text-align: center; }
+  .col-d-diff       { flex: 0.8; text-align: center; }
 
   .pill {
     padding: 6px 14px;
@@ -230,13 +250,162 @@
     font-size: 13px;
   }
 
+  .summary-table {
+    margin-bottom: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+  .summary-table:empty { display: none; margin: 0; }
+
+  .pill {
+    display: inline-flex;
+  }
+
+  .ready-dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+  }
+  .ready-dot.is-ready     { background: #34c759; }
+  .ready-dot.is-not-ready { background: #ffcc00; }
+
+  .row-btn.remove-row:disabled {
+    background: var(--border);
+    color: var(--text-3);
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+  .row-btn.remove-row:disabled:hover { background: var(--border); }
+
+  /* ---- Calculator (deliberately red — a standout utility, not part of the count flow) ---- */
+  .calc-panel {
+    margin: 10px 28px;
+    padding: 12px 16px 14px;
+    background: #fff5f4;
+    border: 2px solid #ff3b30;
+    border-radius: var(--radius);
+    box-shadow: 0 2px 10px rgba(255, 59, 48, 0.18);
+    max-width: 440px;
+  }
+  .calc-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #cc2f27;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 8px;
+  }
+  .calc-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 8px;
+  }
+  .calc-input {
+    width: 78px;
+    padding: 6px 8px;
+    border: 1.5px solid rgba(255, 59, 48, 0.4);
+    border-radius: 6px;
+    font-family: var(--font);
+    font-size: 13px;
+    text-align: center;
+    background: #fff;
+    color: var(--text);
+  }
+  .calc-input:focus {
+    outline: none;
+    border-color: #ff3b30;
+    box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.2);
+  }
+  .calc-select {
+    padding: 6px 8px;
+    border: 1.5px solid rgba(255, 59, 48, 0.4);
+    border-radius: 6px;
+    background: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    color: #cc2f27;
+  }
+  .calc-select:focus { outline: none; border-color: #ff3b30; }
+  .calc-btn {
+    margin: 0;
+    padding: 7px 16px;
+    border: none;
+    border-radius: 6px;
+    background: #ff3b30;
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(255, 59, 48, 0.35);
+    transition: background 0.15s, transform 0.1s;
+  }
+  .calc-btn:hover { background: #ff5c52; }
+  .calc-btn:active { transform: scale(0.97); }
+  .calc-result {
+    font-family: "SF Mono", "Menlo", "Monaco", monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: #cc2f27;
+    background: #fff;
+    border: 1.5px solid rgba(255, 59, 48, 0.3);
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin-bottom: 8px;
+    text-align: right;
+  }
+  .calc-history {
+    max-height: 64px;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 59, 48, 0.25);
+    border-radius: 6px;
+    background: #fff;
+    padding: 5px 9px;
+    margin-bottom: 8px;
+    font-family: "SF Mono", "Menlo", "Monaco", monospace;
+    font-size: 11.5px;
+    color: var(--text-2);
+  }
+  .calc-history-entry {
+    padding: 2px 0;
+    border-bottom: 1px dashed rgba(255, 59, 48, 0.15);
+  }
+  .calc-history-entry:last-child { border-bottom: none; }
+  .calc-history-empty { color: var(--text-3); font-style: italic; }
+  .calc-btn-secondary {
+    margin: 0;
+    padding: 5px 12px;
+    border: 1.5px solid rgba(255, 59, 48, 0.4);
+    border-radius: 6px;
+    background: #fff;
+    color: #cc2f27;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .calc-btn-secondary:hover { background: rgba(255, 59, 48, 0.08); }
+
   .ready-refresh-row { margin: 0 0 6px 0; justify-content: space-between; }
   .ready-refresh-row button { margin: 0; }
   .ready-label { font-size: 13px; font-weight: 500; color: var(--text-2); }
 
-  .diff-zero { color: var(--text-2); }
-  .diff-pos  { color: #ff3b30; font-weight: 600; }
-  .diff-neg  { color: #ff9500; font-weight: 600; }
+  .diff-zero     { color: var(--text-2); }
+  .diff-shortage { color: #ff3b30; font-weight: 600; } /* total below expected */
+  .diff-overage  { color: #ff9500; font-weight: 600; } /* total above expected */
+
+  /*  MS START HERE  */
+  .mx-h-1{
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .bkgr-clr-g-lht{
+    background-color:rgba(52, 199, 89, 0.16);
+  }
 
   #topActions { margin-top: 18px; }
 
@@ -261,12 +430,13 @@
 
 <div class="flex-this" id="topActions">
   <button id="getNewBtn">Get New</button>
+  <button id="loadSaveBtn">Load Last Saved</button>
   <button id="completeBtn">Complete</button>
 </div>
 
 <div class="flex-this sectionA">
   <div class="flex-this">
-    <div class="panel">
+    <div class="panel mx-h-1">
       <div class="panel-title">All Locations</div>
       <div id="allLocations" class="flex-this" style="margin:0;">
         <div class="pill empty">No locations loaded yet</div>
@@ -275,7 +445,7 @@
   </div>
   <vl class="visual-separator"></vl>
   <div class="flex-this">
-    <div class="panel">
+    <div class="panel mx-h-1">
       <div class="panel-title">Items at Selected Location</div>
       <div id="locationItems" class="flex-this" style="margin:0;">
         <div class="pill empty">Click a location</div>
@@ -284,7 +454,29 @@
   </div>
 </div>
 
-<div class="flex-this">
+<div class="calc-panel" id="scroll-from-items-menu-id">
+  <div class="calc-title">Calculator</div>
+  <div class="calc-row">
+    <input type="number" id="calcA" class="calc-input" placeholder="A">
+    <select id="calcOp" class="calc-select">
+      <option value="+">+</option>
+      <option value="-">&minus;</option>
+      <option value="*">&times;</option>
+      <option value="/">&divide;</option>
+    </select>
+    <input type="number" id="calcB" class="calc-input" placeholder="B">
+    <button id="calcEqBtn" class="calc-btn">=</button>
+  </div>
+  <div class="calc-result" id="calcResult">0</div>
+  <div class="calc-history" id="calcHistory">
+    <div class="calc-history-empty">No calculations yet</div>
+  </div>
+  <div class="calc-row" style="margin-bottom:0;">
+    <button id="calcClearHistoryBtn" class="calc-btn-secondary">Clear History</button>
+  </div>
+</div>
+
+<div class="flex-this-ai-fs">
   <div class="sectionB">
     <div class="panel">
       <div class="panel-title">All Items</div>
@@ -294,18 +486,31 @@
     </div>
   </div>
 
-  <div class="sectionC">
-    <div class="panel">
-      <div class="flex-this ready-refresh-row">
-        <div class="flex-this" style="margin:0;">
-          <input type="checkbox" id="readyCheckbox" disabled>
-          <div class="ready-label">Ready</div>
+  <div class="cSectionsWrap">
+    <div class="sectionC">
+      <div class="panel">
+        <div class="flex-this ready-refresh-row">
+          <div class="flex-this" style="margin:0;">
+            <input type="checkbox" id="readyCheckbox" disabled>
+            <div class="ready-label">Ready</div>
+          </div>
+          <button id="refreshBtn" disabled>Refresh</button>
         </div>
-        <button id="refreshBtn" disabled>Refresh</button>
-      </div>
 
-      <div id="sectionCTable" class="table-wrap">
-        <div class="empty-state">Select an item from "All Items" (or a location) to view its count table.</div>
+        <div id="sectionCSummaryTable" class="table-wrap summary-table"></div>
+
+        <div id="sectionCTable" class="table-wrap">
+          <div class="empty-state">Select an item from "All Items" (or a location) to view its count table.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sectionD">
+      <div class="panel">
+        <div class="panel-title">Overview — All Items</div>
+        <div id="sectionDTable" class="table-wrap">
+          <div class="empty-state">No items loaded yet.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -397,13 +602,17 @@ async function logout() {
 }
 document.getElementById("session-outid").onclick = logout;
 
+/**
+ *  Write 
+*/
+
 (function () {
   "use strict";
 
   // ------------------------------------------------------------
   // Config
   // ------------------------------------------------------------
-  const API_BASE = "https://api.ancienthowl.net"; // set this to your API root, e.g. "https://api.example.com"
+  const API_BASE = ""; // set this to your API root, e.g. "https://api.example.com"
 
   // ------------------------------------------------------------
   // State
@@ -422,14 +631,17 @@ document.getElementById("session-outid").onclick = logout;
 
   const el = {
     getNewBtn: document.getElementById("getNewBtn"),
+    loadSaveBtn: document.getElementById("loadSaveBtn"),
     completeBtn: document.getElementById("completeBtn"),
     allLocations: document.getElementById("allLocations"),
     locationItems: document.getElementById("locationItems"),
     allItems: document.getElementById("allItems"),
+    sectionCSummaryTable: document.getElementById("sectionCSummaryTable"),
     sectionCTable: document.getElementById("sectionCTable"),
+    sectionDTable: document.getElementById("sectionDTable"),
     readyCheckbox: document.getElementById("readyCheckbox"),
     refreshBtn: document.getElementById("refreshBtn"),
-    logger: document.getElementById("logger")
+    logger: document.getElementById("logger"),
     //metaTime: document.getElementById("metaTime")
   };
 
@@ -540,9 +752,60 @@ document.getElementById("session-outid").onclick = logout;
       renderLocationItems();
       renderItems();
       renderSectionC();
+      renderSectionD();
       log(`Loaded ${data.length} item(s) from server.`);
     } catch (err) {
       log(`Failed to fetch data: ${err.message}`, true);
+    }
+  }
+
+  // ------------------------------------------------------------
+  // GET — load the last saved (persisted) snapshot from the server.
+  // Response is an array of rows in the same shape the "Complete"
+  // button posts: [#Item_name, total, expected, difference, note,
+  //                total_new, total_used, Locations, serialization_string, ready_state]
+  // We rebuild itemsData straight from each row's serialization_string
+  // (via deserializeTable) plus expected/note/ready_state — total,
+  // difference, total_new and total_used are re-derived from the rows
+  // rather than trusted as-is, so the UI is always internally consistent.
+  // ------------------------------------------------------------
+  async function loadSavedData() {
+    try {
+      log("Loading last saved snapshot from server…");
+      const response = await fetch(`${API_BASE}/count-inventory-persist`, {
+        method: "GET",
+        credentials: "include"
+      });
+      if (!response.ok) throw new Error(`Server responded ${response.status}`);
+      const data = await response.json();
+
+      itemsData = {};
+      data.forEach(entry => {
+        const [rawName, , expected, , note, , , , serializationString, ready] = entry;
+        const itemName = String(rawName).replace(/^#/, "");
+        const parsedRows = deserializeTable(serializationString);
+        const rows = parsedRows.length > 0
+          ? parsedRows.map(r => ({ location: r.location, newVal: r.newVal, usedVal: r.usedVal }))
+          : [{ location: "", newVal: "", usedVal: "" }]; // always keep at least one row
+
+        itemsData[itemName] = {
+          expected: num(expected),
+          note: note || "",
+          ready: !!ready,
+          rows
+        };
+      });
+
+      selectedItem = null;
+      selectedLocation = null;
+      renderLocations();
+      renderLocationItems();
+      renderItems();
+      renderSectionC();
+      renderSectionD();
+      log(`Loaded ${data.length} item(s) from last saved snapshot.`);
+    } catch (err) {
+      log(`Failed to load saved snapshot: ${err.message}`, true);
     }
   }
 
@@ -557,7 +820,7 @@ document.getElementById("session-outid").onclick = logout;
     const totalUsed = data.rows.reduce((acc, r) => acc + num(r.usedVal), 0);
     const total = totalNew + totalUsed;
     const expected = data.expected;
-    const difference = expected - total;
+    const difference = total - expected;
     return { totalNew, totalUsed, total, expected, difference };
   }
 
@@ -586,16 +849,33 @@ document.getElementById("session-outid").onclick = logout;
     try {
       const payload = buildPushPayload();
       log("Posting completed table to server…");
-      const response = await fetch(`${API_BASE}/endpoint`, {
+      const response = await fetch(`${API_BASE}/count-inventory-complete`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
       if (!response.ok) throw new Error(`Server responded ${response.status}`);
-      log("Table posted successfully.");
+      log("Count ready for Completion.");
     } catch (err) {
-      log(`Failed to post data: ${err.message}`, true);
+      log(`Failed to send data: ${err.message}`, true);
+    }
+  }
+
+  async function completeDontPost() {
+    try {
+      const payload = buildPushPayload();
+      log("Saving...");
+      const response = await fetch(`${API_BASE}/count-inventory-persist`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(`Server responded ${response.status}`);
+      log("Changes saved.");
+    } catch (err) {
+      log(`Failed to send data: ${err.message}`, true);
     }
   }
 
@@ -644,9 +924,24 @@ document.getElementById("session-outid").onclick = logout;
       return;
     }
     matches.forEach(itemName => {
-      const pill = document.createElement("div");
+      /*const pill = document.createElement("div");
       pill.className = "pill obj-name" + (itemName === selectedItem ? " selected-1" : "");
       pill.textContent = itemName;
+      pill.addEventListener("click", () => selectItem(itemName));
+      el.locationItems.appendChild(pill);*/
+      const isReady = !!itemsData[itemName].ready;
+      const pill = document.createElement("div");
+      pill.className = "pill obj-name" + (itemName === selectedItem ? " selected-1" : "");
+
+      const dot = document.createElement("span");
+      dot.className = "ready-dot " + (isReady ? "is-ready" : "is-not-ready");
+      dot.title = isReady ? "Ready" : "Not ready";
+
+      const label = document.createElement("span");
+      label.textContent = itemName;
+
+      pill.appendChild(dot);
+      pill.appendChild(label);
       pill.addEventListener("click", () => selectItem(itemName));
       el.locationItems.appendChild(pill);
     });
@@ -656,7 +951,7 @@ document.getElementById("session-outid").onclick = logout;
   // Section B — all items
   // ------------------------------------------------------------
   function renderItems() {
-    const names = Object.keys(itemsData);
+    const names = Object.keys(itemsData).sort((a, b) => a.localeCompare(b));
     el.allItems.innerHTML = "";
     if (names.length === 0) {
       el.allItems.innerHTML = '<div class="pill empty">No items loaded yet</div>';
@@ -667,9 +962,19 @@ document.getElementById("session-outid").onclick = logout;
     wrap.style.flexDirection = "column";
     wrap.style.gap = "6px";
     names.forEach(itemName => {
+      const isReady = !!itemsData[itemName].ready;
       const pill = document.createElement("div");
       pill.className = "pill obj-name" + (itemName === selectedItem ? " selected-1" : "");
-      pill.textContent = itemName;
+
+      const dot = document.createElement("span");
+      dot.className = "ready-dot " + (isReady ? "is-ready" : "is-not-ready");
+      dot.title = isReady ? "Ready" : "Not ready";
+
+      const label = document.createElement("span");
+      label.textContent = itemName;
+
+      pill.appendChild(dot);
+      pill.appendChild(label);
       pill.addEventListener("click", () => selectItem(itemName));
       wrap.appendChild(pill);
     });
@@ -681,6 +986,51 @@ document.getElementById("session-outid").onclick = logout;
     renderItems();
     renderLocationItems();
     renderSectionC();
+
+    document.getElementById("scroll-from-items-menu-id").scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }
+
+  // ------------------------------------------------------------
+  // Section D — overview table (Item / Locations / Expected / Difference)
+  // One row per item, sorted A-Z. Rebuilt whenever item data changes.
+  // ------------------------------------------------------------
+  function renderSectionD() {
+    const names = Object.keys(itemsData).sort((a, b) => a.localeCompare(b));
+    el.sectionDTable.innerHTML = "";
+
+    if (names.length === 0) {
+      el.sectionDTable.innerHTML = '<div class="empty-state">No items loaded yet.</div>';
+      return;
+    }
+
+    const header = document.createElement("div");
+    header.className = "table-row header-row";
+    header.innerHTML = `
+      <div class="col-d-name">Item</div>
+      <div class="col-d-locations">Locations</div>
+      <div class="col-d-expected">Expected</div>
+      <div class="col-d-diff">Difference</div>
+    `;
+    el.sectionDTable.appendChild(header);
+
+    names.forEach(itemName => {
+      const data = itemsData[itemName];
+      const { expected, difference } = computeItemSummary(itemName);
+      const locations = data.rows.map(r => r.location).filter(Boolean).join(", ");
+      const row = document.createElement("div");
+      const isReady = !!itemsData[itemName].ready;
+      row.className = "table-row" + (isReady ? " bkgr-clr-g-lht" : "");
+      row.innerHTML = `
+        <div class="col-d-name">${escapeHtml(itemName)}</div>
+        <div class="col-d-locations">${escapeHtml(locations || "—")}</div>
+        <div class="col-d-expected">${expected}</div>
+        <div class="col-d-diff ${diffClass(difference)}">${difference}</div>
+      `;
+      el.sectionDTable.appendChild(row);
+    });
   }
 
   // ------------------------------------------------------------
@@ -688,11 +1038,12 @@ document.getElementById("session-outid").onclick = logout;
   // ------------------------------------------------------------
   function diffClass(diff) {
     if (diff === 0) return "diff-zero";
-    return diff > 0 ? "diff-pos" : "diff-neg";
+    return diff < 0 ? "diff-shortage" : "diff-overage";
   }
 
   function renderSectionC() {
     if (!selectedItem || !itemsData[selectedItem]) {
+      el.sectionCSummaryTable.innerHTML = "";
       el.sectionCTable.innerHTML =
         '<div class="empty-state">Select an item from "All Items" (or a location) to view its count table.</div>';
       el.readyCheckbox.disabled = true;
@@ -710,9 +1061,35 @@ document.getElementById("session-outid").onclick = logout;
 
     el.refreshBtn.disabled = false;
 
+    // ---- Table 1: Expected / Difference / Note (header + summary only) ----
+    el.sectionCSummaryTable.innerHTML = "";
+
+    const topHeader = document.createElement("div");
+    topHeader.className = "table-row header-row";
+    topHeader.innerHTML = `
+      <div class="col-expected">Expected</div>
+      <div class="col-diff">Difference</div>
+      <div class="col-note">Note</div>
+    `;
+    el.sectionCSummaryTable.appendChild(topHeader);
+
+    const topSummary = document.createElement("div");
+    topSummary.className = "table-row summary-row";
+    topSummary.innerHTML = `
+      <div class="col-expected">${expected}</div>
+      <div class="col-diff ${diffClass(difference)}">${difference}</div>
+      <div class="col-note"><input type="text" placeholder="Note…"></div>
+    `;
+    const noteInput = topSummary.querySelector(".col-note input");
+    noteInput.value = data.note || "";
+    noteInput.addEventListener("input", () => {
+      data.note = noteInput.value;
+    });
+    el.sectionCSummaryTable.appendChild(topSummary);
+
+    // ---- Table 2: Item / Location / New / Used / Total ----
     el.sectionCTable.innerHTML = "";
 
-    // Header row
     const header = document.createElement("div");
     header.className = "table-row header-row";
     header.innerHTML = `
@@ -721,13 +1098,9 @@ document.getElementById("session-outid").onclick = logout;
       <div class="col-new">New</div>
       <div class="col-used">Used</div>
       <div class="col-total">Total</div>
-      <div class="col-expected">Expected</div>
-      <div class="col-diff">Difference</div>
-      <div class="col-note">Note</div>
     `;
     el.sectionCTable.appendChild(header);
 
-    // Summary row
     const summary = document.createElement("div");
     summary.className = "table-row summary-row";
     summary.innerHTML = `
@@ -736,18 +1109,11 @@ document.getElementById("session-outid").onclick = logout;
       <div class="col-new">${totalNew}</div>
       <div class="col-used">${totalUsed}</div>
       <div class="col-total">${total}</div>
-      <div class="col-expected">${expected}</div>
-      <div class="col-diff ${diffClass(difference)}">${difference}</div>
-      <div class="col-note"><input type="text" placeholder="Note…"></div>
     `;
-    const noteInput = summary.querySelector(".col-note input");
-    noteInput.value = data.note || "";
-    noteInput.addEventListener("input", () => {
-      data.note = noteInput.value;
-    });
     el.sectionCTable.appendChild(summary);
 
     // Item rows
+    const canRemove = data.rows.length > 1;
     data.rows.forEach((row, idx) => {
       const rowTotal = num(row.newVal) + num(row.usedVal);
       const rowEl = document.createElement("div");
@@ -755,22 +1121,24 @@ document.getElementById("session-outid").onclick = logout;
       rowEl.innerHTML = `
         <div class="col-name">${escapeHtml(itemName)}</div>
         <div class="col-location">
-          <button class="row-btn remove-row">X</button>
+          <button class="row-btn remove-row"${canRemove ? "" : " disabled"}>X</button>
           <input type="text" class="loc-input">
           <button class="row-btn add-row-below">V</button>
         </div>
         <div class="col-new cell-new"><input type="number" class="new-input"></div>
         <div class="col-used cell-used"><input type="number" class="used-input"></div>
         <div class="col-total cell-total row-total">${rowTotal}</div>
-        <div class="col-expected"></div>
-        <div class="col-diff"></div>
-        <div class="col-note"></div>
       `;
 
+      const removeBtn = rowEl.querySelector(".remove-row");
       const locInput = rowEl.querySelector(".loc-input");
       const newInput = rowEl.querySelector(".new-input");
       const usedInput = rowEl.querySelector(".used-input");
       const rowTotalEl = rowEl.querySelector(".row-total");
+
+      if (!canRemove) {
+        removeBtn.title = "Can't delete the last remaining row";
+      }
 
       locInput.value = row.location || "";
       newInput.value = row.newVal;
@@ -780,26 +1148,31 @@ document.getElementById("session-outid").onclick = logout;
         row.location = locInput.value.trim();
         renderLocations();
         renderLocationItems();
+        renderSectionD();
       });
 
       function updateRowTotal() {
         row.newVal = newInput.value;
         row.usedVal = usedInput.value;
         rowTotalEl.textContent = num(row.newVal) + num(row.usedVal);
+        renderSectionD();
       }
       newInput.addEventListener("input", updateRowTotal);
       usedInput.addEventListener("input", updateRowTotal);
 
-      rowEl.querySelector(".remove-row").addEventListener("click", () => {
+      removeBtn.addEventListener("click", () => {
+        if (data.rows.length <= 1) return; // never delete the last remaining row
         data.rows.splice(idx, 1);
         renderSectionC();
         renderLocations();
         renderLocationItems();
+        renderSectionD();
       });
 
       rowEl.querySelector(".add-row-below").addEventListener("click", () => {
         data.rows.splice(idx + 1, 0, { location: "", newVal: "", usedVal: "" });
         renderSectionC();
+        renderSectionD();
       });
 
       el.sectionCTable.appendChild(rowEl);
@@ -810,7 +1183,8 @@ document.getElementById("session-outid").onclick = logout;
     if (!selectedItem) return;
     // Recompute row totals + summary sums/difference and re-render.
     renderSectionC();
-    log(`Refreshed totals for "${selectedItem}".`);
+    completeDontPost();
+    //log(`Refreshed totals for "${selectedItem}".`);
   }
 
   function escapeHtml(str) {
@@ -820,14 +1194,88 @@ document.getElementById("session-outid").onclick = logout;
   }
 
   // ------------------------------------------------------------
+  // Calculator — basic +, -, *, / with a scrollable history log
+  // ------------------------------------------------------------
+  let calcHistory = [];
+
+  const calcEl = {
+    a: document.getElementById("calcA"),
+    op: document.getElementById("calcOp"),
+    b: document.getElementById("calcB"),
+    eqBtn: document.getElementById("calcEqBtn"),
+    result: document.getElementById("calcResult"),
+    history: document.getElementById("calcHistory"),
+    clearBtn: document.getElementById("calcClearHistoryBtn")
+  };
+
+  const opSymbols = { "+": "+", "-": "\u2212", "*": "\u00d7", "/": "\u00f7" };
+
+  function calcCompute(aRaw, op, bRaw) {
+    const a = Number(aRaw);
+    const b = Number(bRaw);
+    if (aRaw === "" || bRaw === "" || isNaN(a) || isNaN(b)) return null;
+    switch (op) {
+      case "+": return a + b;
+      case "-": return a - b;
+      case "*": return a * b;
+      case "/": return b === 0 ? null : a / b;
+      default: return null;
+    }
+  }
+
+  function renderCalcHistory() {
+    if (calcHistory.length === 0) {
+      calcEl.history.innerHTML = '<div class="calc-history-empty">No calculations yet</div>';
+      return;
+    }
+    calcEl.history.innerHTML = calcHistory
+      .map(entry => `<div class="calc-history-entry">${escapeHtml(entry)}</div>`)
+      .join("");
+    calcEl.history.scrollTop = 0;
+  }
+
+  function runCalculation() {
+    const aRaw = calcEl.a.value;
+    const bRaw = calcEl.b.value;
+    const op = calcEl.op.value;
+    const result = calcCompute(aRaw, op, bRaw);
+
+    if (result === null || !isFinite(result)) {
+      calcEl.result.textContent = "Error";
+      return;
+    }
+
+    const rounded = Math.round(result * 1e6) / 1e6;
+    calcEl.result.textContent = rounded;
+    calcHistory.unshift(`${aRaw} ${opSymbols[op]} ${bRaw} = ${rounded}`);
+    if (calcHistory.length > 50) calcHistory.pop();
+    renderCalcHistory();
+  }
+
+  calcEl.eqBtn.addEventListener("click", runCalculation);
+  calcEl.clearBtn.addEventListener("click", () => {
+    calcHistory = [];
+    renderCalcHistory();
+  });
+  [calcEl.a, calcEl.b].forEach(input => {
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") runCalculation();
+    });
+  });
+
+  // ------------------------------------------------------------
   // Wire up static controls
   // ------------------------------------------------------------
   el.getNewBtn.addEventListener("click", getNewData);
+  el.loadSaveBtn.addEventListener("click", loadSavedData);
   el.completeBtn.addEventListener("click", completeAndPost);
   el.refreshBtn.addEventListener("click", refreshTable);
   el.readyCheckbox.addEventListener("change", () => {
     if (selectedItem && itemsData[selectedItem]) {
       itemsData[selectedItem].ready = el.readyCheckbox.checked;
+      renderItems();
+      renderLocationItems();
+      renderSectionD();
     }
   });
 
