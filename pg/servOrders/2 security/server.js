@@ -22,6 +22,7 @@ const TKTK_API_BASE = "https://open-api.tiktokglobalshop.com"; // data calls
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+const path = require("path");
 
 app.use(cors(
   /*{
@@ -47,13 +48,17 @@ function requireApiKey(req, res, next) {
 
   // Cookie Session
   if (req.path === "/authsessionin" && req.method === "POST"){
+    console.warn(`✅-Authorized-from ${req.ip} || ${req.headers["x-forwarded-for"]} at ${new Date().toLocaleString("en-US",{timeZone: "America/New_York"})} to ${req.method} ${req.path}`);
     return next();
   }
 
   //console.log(req.headers);
   //console.log(req.headers.cookie || "wrong guess");
   const sessionCond = req.headers.cookie || "";
-  if(sessionCond && sessionCond.length > 0 && sessionCond === "hallpass="+COOKIE_SECRET){ return next();}
+  if(sessionCond && sessionCond.length > 0 && sessionCond === "hallpass="+COOKIE_SECRET){ 
+    console.warn(`✅-Authorized-from ${req.ip} || ${req.headers["x-forwarded-for"]} at ${new Date().toLocaleString("en-US",{timeZone: "America/New_York"})} to ${req.method} ${req.path}`);
+    return next();
+  }
   /*if(false){
     const raw = req.cookies.hallpass || "";
     console.log("hallpass:",raw);
@@ -71,10 +76,12 @@ function requireApiKey(req, res, next) {
   // Allow ShipStation webhooks through without a key —
   // they are already IP-restricted at the Nginx level.
   if (req.path === "/webhook" && req.method === "POST") {
+    console.warn(`✅-Authorized-from ${req.ip} || ${req.headers["x-forwarded-for"]} at ${new Date().toLocaleString("en-US",{timeZone: "America/New_York"})} to ${req.method} ${req.path}`);
     return next();
   }
   //"/tiktokrcw/callback"
   if (req.path === "/tiktokrcw/callback" && req.method === "GET"){
+    console.warn(`✅-Authorized-from ${req.ip} || ${req.headers["x-forwarded-for"]} at ${new Date().toLocaleString("en-US",{timeZone: "America/New_York"})} to ${req.method} ${req.path}`);
     return next();
   }
 
@@ -82,6 +89,8 @@ function requireApiKey(req, res, next) {
   if (!key || key !== API_KEY) {
     console.warn(`🚫-Unauthorized-from ${req.ip} || ${req.headers["x-forwarded-for"]} at ${new Date().toLocaleString("en-US",{timeZone: "America/New_York"})} to ${req.method} ${req.path}`);
     return res.status(401).json({ error: "Unauthorized — missing or invalid API key" });
+  } else {
+    console.warn(`✅-Authorized-from ${req.ip} || ${req.headers["x-forwarded-for"]} at ${new Date().toLocaleString("en-US",{timeZone: "America/New_York"})} to ${req.method} ${req.path}`);
   }
   next();
 }
@@ -91,7 +100,9 @@ app.use(requireApiKey);
 // ─── In-Memory Store ──────────────────────────────────────────────────────────
 // Map<trackingNumber, { orderNumber, trackingNumber, items, receivedAt }>
 const shipmentsStore = new Map();
-const countPayloadStart = {};
+const INVENTORY_FILE = path.join(__dirname, "count-inventory.json");
+const INVENTORY_FILE_COMPLETE = path.join(__dirname, "count-inventory-complete.json");
+let countPayloadStart = null;
 
 // ─── ShipStation Auth ─────────────────────────────────────────────────────────
 const SS_API_KEY    = process.env.SS_API_KEY;
@@ -330,6 +341,140 @@ app.post("/authsessionout", async(req,res)=>{
   })
   console.log("✅ Cookie 🍪 was giventh, cookie 🍪 has been takenth")
   res.status(200).send("Session terminated");
+});
+
+//
+// POST /count-inventory-persist
+//
+app.post("/count-inventory-persist", (req, res) => {
+  try {
+    const payload = req.body;
+
+    fs.writeFileSync(
+      INVENTORY_FILE,
+      JSON.stringify(payload, null, 2),
+      "utf8"
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Inventory payload persisted successfully"
+    });
+    console.log(" ✅  Saved locally Count State"); 
+  } catch (error) {
+    console.error("Error persisting inventory:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to persist inventory"
+    });
+    console.log(" ❌  Count State did not save");
+  }
+});
+
+//
+// GET /count-inventory-persist
+//
+app.get("/count-inventory-persist", (req, res) => {
+  try {
+    if (!fs.existsSync(INVENTORY_FILE)) {
+      return res.status(404).json({
+        success: false,
+        message: "No persisted inventory found"
+      });
+    }
+
+    const fileContents = fs.readFileSync(INVENTORY_FILE, "utf8");
+    const payload = JSON.parse(fileContents);
+     
+    res.status(200).json(payload);
+    console.log(" ✅  Count State copy transfered"); 
+  } catch (error) {
+    console.error(" ❌  Error reading inventory:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to read persisted inventory"
+    });
+  }
+});
+
+//
+// POST /count-inventory-complete
+//
+app.post("/count-inventory-complete", (req, res) => {
+  try {
+    const payload = req.body;
+
+    // Split payload based on the condition at index 9
+    const completeItems = payload.filter(item => item[9] === true);
+    const incompleteItems = payload.filter(item => item[9] === false);
+
+    // Save complete items
+    fs.writeFileSync(
+      INVENTORY_FILE_COMPLETE,
+      JSON.stringify(completeItems, null, 2),
+      "utf8"
+    );
+
+    // Save incomplete items
+    fs.writeFileSync(
+      INVENTORY_FILE,
+      JSON.stringify(incompleteItems, null, 2),
+      "utf8"
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Inventory payloads persisted successfully",
+      completeCount: completeItems.length,
+      incompleteCount: incompleteItems.length
+    });
+
+    console.log(
+      `✅ Saved ${completeItems.length} complete items to Complete Count State`
+    );
+    console.log(
+      `✅ Saved ${incompleteItems.length} incomplete items to Inventory State`
+    );
+
+  } catch (error) {
+    console.error("Error persisting inventory:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to persist inventory"
+    });
+
+    console.log("❌ Inventory-complete state did not save");
+  }
+});
+
+//
+// GET /count-inventory-complete
+//
+app.get("/count-inventory-complete", (req, res) => {
+  try {
+    if (!fs.existsSync(INVENTORY_FILE_COMPLETE)) {
+      return res.status(404).json({
+        success: false,
+        message: "No persisted inventory found"
+      });
+    }
+
+    const fileContents = fs.readFileSync(INVENTORY_FILE_COMPLETE, "utf8");
+    const payload = JSON.parse(fileContents);
+     
+    res.status(200).json(payload);
+    console.log(" ✅  Complete Count State copy transfered"); 
+  } catch (error) {
+    console.error(" ❌  Error reading inventory-complete:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to read persisted inventory"
+    });
+  }
 });
 
 /**
@@ -941,13 +1086,13 @@ app.post('/update-ship-from', async (req, res) => {
  * Count Page
  */
 app.post("/count-inventory-start", async(req,res)=>{
-  countPayloadStart = req.payload;
+  countPayloadStart = req.body;
   let resmsg = "";
-  if(countPayloadStart && countPayloadStart.size > 0){
-    console.log(countPayloadStart);
+  if(countPayloadStart !== null){
+    //console.log(countPayloadStart);
 
     resmsg += "✅  Successfully got Count START table";
-    res.status(200).send(resmsg);
+    res.status(200).json({ message: "OK"});
     console.log(resmsg);
   }else{
     res.status(400).json({error: err.response?.data || err.message, });
@@ -962,8 +1107,9 @@ app.get("/count-inventory-start-pull", async(req,res)=>{
     console.log(resmsg);
     return res.status(400).send("Error occured");
   }
-  res.json({data: countPayloadStart});
-  res.status(200).send("Success");
+  res.json(countPayloadStart);        //  [data]  
+  //res.json({countPayloadStart});    //  [property: {data}]
+  // res.send() - error, sending response twice
   console.log(" ✅  Count START successfull Pull")
 });
 
